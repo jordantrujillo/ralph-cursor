@@ -10,23 +10,40 @@ Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
 ## Prerequisites
 
-- Cursor CLI (`cursor`) installed and authenticated
-- `yq` installed (`brew install yq` on macOS) or Python 3 with PyYAML (`pip install pyyaml`)
+- Cursor CLI (`cursor-agent` or `agent` command) installed and authenticated
+- Python 3 installed
+- `yq` installed (`brew install yq` on macOS) or Python 3 with PyYAML (`pip install pyyaml`) - optional but recommended
 - A git repository for your project
 
-## Setup
+## Installation
 
-### Option 1: Copy to your project
+### Install Ralph CLI
 
-Copy the Ralph templates into your project:
+Install the Ralph CLI globally:
 
 ```bash
-# From your project root
-mkdir -p scripts/ralph
-cp -R /path/to/ralph/scripts/ralph/* scripts/ralph/
-chmod +x scripts/ralph/ralph.py
-chmod +x scripts/ralph/cursor/convert-to-prd-yml.sh
+# From the ralph-cursor repository root
+./install.sh
 ```
+
+This installs the `ralph` command to `~/.local/bin` (or `/usr/local/bin` if that's not writable). Make sure this directory is in your PATH.
+
+### Initialize Ralph in your project
+
+Navigate to your project directory and initialize Ralph:
+
+```bash
+# Basic initialization
+ralph init
+
+# With Cursor rules and CLI config templates
+ralph init --cursor-rules --cursor-cli
+
+# Overwrite existing files
+ralph init --force
+```
+
+This copies the necessary Ralph files into your project's `scripts/ralph/` directory.
 
 
 ## Workflow
@@ -47,32 +64,41 @@ This creates `scripts/ralph/prd.yml` with user stories structured for autonomous
 
 ### 3. Run Ralph
 
+Use the Ralph CLI to run the agent loop:
+
 ```bash
-python3 scripts/ralph/ralph.py [max_iterations] [--cursor-timeout SECONDS]
+# Run with default settings (10 iterations)
+ralph run
+
+# Run with custom iteration count
+ralph run 20
+
+# Run with timeout and model selection
+ralph run 10 --cursor-timeout 3600 --model claude-3.5-sonnet
 ```
 
-Default is 10 iterations.
+You can also run the Python script directly:
+
+```bash
+python3 scripts/ralph/ralph.py [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
+```
+
+**Environment Variables:**
+- `RALPH_CURSOR_TIMEOUT` - Default timeout in seconds (default: 1800)
+- `RALPH_MODEL` - Default model to use (default: 'auto')
 
 The runner loop will invoke Cursor CLI repeatedly. The worker prompt instructs it to:
 - Read `scripts/ralph/prd.yml` and `scripts/ralph/progress.txt`
 - Implement one story per iteration, run checks, commit, and update `passes: true`
 - Stop by outputting `<promise>COMPLETE</promise>` when all stories pass
 
-Examples:
-```bash
-# Run with default settings
-python3 scripts/ralph/ralph.py 10
-
-# Run with a per-iteration timeout
-python3 scripts/ralph/ralph.py 10 --cursor-timeout 1800
-```
-
-Note: `--cursor-timeout` only applies if a `timeout` binary is available on your PATH. If it isn't, Ralph will run Cursor without a hard timeout.
+**Note:** `--cursor-timeout` only applies if a `timeout` binary is available on your PATH. If it isn't, Ralph will use Python's timeout mechanism.
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
+| `bin/ralph.py` | The Ralph CLI tool (`ralph init` and `ralph run` commands) |
 | `scripts/ralph/ralph.py` | The Python loop that spawns fresh Cursor invocations |
 | `scripts/ralph/cursor/prompt.cursor.md` | Instructions given to each Cursor iteration |
 | `scripts/ralph/cursor/convert-to-prd-yml.sh` | Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI |
@@ -169,6 +195,36 @@ Edit the worker prompt to customize Ralph's behavior for your project:
 
 Worker prompt location:
 - `scripts/ralph/cursor/prompt.cursor.md`
+
+## CLI Commands
+
+### `ralph init`
+
+Initialize Ralph in your current repository:
+
+```bash
+ralph init [--force] [--cursor-rules] [--cursor-cli]
+```
+
+Options:
+- `--force` - Overwrite existing files
+- `--cursor-rules` - Also install `.cursor/rules/ralph-prd.mdc`
+- `--cursor-cli` - Also install `.cursor/cli.json` template
+
+### `ralph run`
+
+Run the Ralph agent loop:
+
+```bash
+ralph run [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
+```
+
+Arguments:
+- `max_iterations` - Maximum number of iterations (default: 10)
+
+Options:
+- `--cursor-timeout SECONDS` - Timeout for cursor worker in seconds (default: 1800, from `RALPH_CURSOR_TIMEOUT` env)
+- `--model MODEL` - Model to use for cursor worker (default: 'auto', from `RALPH_MODEL` env)
 
 ## Archiving
 
