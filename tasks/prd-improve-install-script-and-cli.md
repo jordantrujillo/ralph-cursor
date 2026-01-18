@@ -17,7 +17,7 @@ Improve the Ralph install script and CLI to fix bugs, enhance reliability, and p
 ### Phase 1: Install Script Improvements
 **Description:** Improve the install script with better error handling, dependency detection, and PATH configuration guidance. This phase focuses on making the installation process more reliable and user-friendly. Includes quality assurance review for all changes in this phase.
 
-**Branch:** `ralph/improve-install-script-and-cli-phase-1`
+**Branch:** `ralph/improve-install-script-and-cli-phase-1` (branched from current branch)
 
 **User Stories:**
 - US-001: Improve install script error handling and feedback

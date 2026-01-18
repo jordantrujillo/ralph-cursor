@@ -85,7 +85,7 @@ Specific, measurable objectives (bullet list).
 
 ### Phase 1: [Phase Name]
 **Description:** Brief description of what this phase accomplishes.
-**Branch:** `ralph/[feature-name]-phase-1`
+**Branch:** `ralph/[feature-name]-phase-1` (branched from current branch)
 
 **User Stories:**
 - US-001: [Story title]
@@ -112,7 +112,8 @@ Specific, measurable objectives (bullet list).
 - Each phase should be a logical, reviewable unit of work (typically 3-6 stories)
 - Phases should build on each other (later phases depend on earlier ones)
 - Each phase gets its own branch: `ralph/[feature-name]-phase-N`
-- Phase branches are built on top of the previous phase's branch (or main for phase 1)
+- **Phase 1 branches from the current branch** (the branch where the PRD is being worked on, not necessarily main)
+- Phase N branches from Phase N-1's branch (creating a chain: current branch → phase-1 → phase-2 → phase-3...)
 - Aim for phases that can be reviewed in a single PR without being overwhelming
 - **Each phase must include the three Quality Assurance stories** (Code Review, Security Review, Test Review) at the end of that phase's stories
 - When using phases, renumber QA stories for each phase (e.g., US-007/008/009 for Phase 1, US-010/011/012 for Phase 2)
