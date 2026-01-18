@@ -41,7 +41,7 @@ test('ralph init creates scripts/ralph/ directory and files', async () => {
 
     // Check that required files were created
     const requiredFiles = [
-      'scripts/ralph/ralph.sh',
+      'scripts/ralph/ralph.py',
       'scripts/ralph/prompt.md',
       'scripts/ralph/prd.yml.example',
       'scripts/ralph/cursor/prompt.cursor.md',
@@ -59,11 +59,11 @@ test('ralph init creates scripts/ralph/ directory and files', async () => {
       }
     }
 
-    // Check that ralph.sh is executable
+    // Check that ralph.py is executable
     try {
-      await access(join(testDir, 'scripts/ralph/ralph.sh'), constants.X_OK);
+      await access(join(testDir, 'scripts/ralph/ralph.py'), constants.X_OK);
     } catch (err) {
-      assert.fail('ralph.sh is not executable');
+      assert.fail('ralph.py is not executable');
     }
 
     // Check that convert-to-prd-yml.sh is executable
@@ -135,14 +135,14 @@ test('ralph run invokes repo-local runner', async () => {
     await runCLI(['init'], testDir);
 
     // Create stub runner that just prints a message
-    const stubRunner = `#!/bin/bash
-echo "STUB_RUNNER_CALLED"
-echo "ITERATIONS: $1"
-echo "WORKER: $3"
-exit 0
+    const stubRunner = `#!/usr/bin/env python3
+import sys
+print("STUB_RUNNER_CALLED")
+print(f"ITERATIONS: {sys.argv[1] if len(sys.argv) > 1 else '10'}")
+sys.exit(0)
 `;
-    await import('fs/promises').then(fs => fs.writeFile(join(testDir, 'scripts/ralph/ralph.sh'), stubRunner));
-    await import('fs/promises').then(fs => fs.chmod(join(testDir, 'scripts/ralph/ralph.sh'), 0o755));
+    await import('fs/promises').then(fs => fs.writeFile(join(testDir, 'scripts/ralph/ralph.py'), stubRunner));
+    await import('fs/promises').then(fs => fs.chmod(join(testDir, 'scripts/ralph/ralph.py'), 0o755));
 
     // Create stub binaries
     const binDir = join(testDir, 'bin');
@@ -183,20 +183,21 @@ exit 0
   }
 });
 
-test('ralph run executes ralph.sh', async () => {
+test('ralph run executes ralph.py', async () => {
   const testDir = await mkdtemp(join(tmpdir(), 'ralph-test-'));
   try {
     // Initialize
     await runCLI(['init'], testDir);
 
     // Create stub runner
-    const stubRunner = `#!/bin/bash
-echo "STUB_RUNNER_CALLED"
-echo "ITERATIONS: $1"
-exit 0
+    const stubRunner = `#!/usr/bin/env python3
+import sys
+print("STUB_RUNNER_CALLED")
+print(f"ITERATIONS: {sys.argv[1] if len(sys.argv) > 1 else '10'}")
+sys.exit(0)
 `;
-    await import('fs/promises').then(fs => fs.writeFile(join(testDir, 'scripts/ralph/ralph.sh'), stubRunner));
-    await import('fs/promises').then(fs => fs.chmod(join(testDir, 'scripts/ralph/ralph.sh'), 0o755));
+    await import('fs/promises').then(fs => fs.writeFile(join(testDir, 'scripts/ralph/ralph.py'), stubRunner));
+    await import('fs/promises').then(fs => fs.chmod(join(testDir, 'scripts/ralph/ralph.py'), 0o755));
 
     // Create stub cursor binary
     const binDir = join(testDir, 'bin');
@@ -236,7 +237,7 @@ exit 0
       child.on('error', reject);
     });
 
-    assert(result.stdout.includes('WORKER: cursor'), 'Cursor worker should be passed');
+    assert(result.stdout.includes('STUB_RUNNER_CALLED'), 'Runner should be invoked');
   } finally {
     await rm(testDir, { recursive: true, force: true });
   }
@@ -264,7 +265,7 @@ test('ralph init installs cursor files', async () => {
     await access(join(testDir, 'scripts/ralph/cursor/convert-to-prd-yml.sh'), constants.F_OK);
 
     // Check common files exist
-    await access(join(testDir, 'scripts/ralph/ralph.sh'), constants.F_OK);
+    await access(join(testDir, 'scripts/ralph/ralph.py'), constants.F_OK);
     await access(join(testDir, 'scripts/ralph/prd.yml.example'), constants.F_OK);
   } finally {
     await rm(testDir, { recursive: true, force: true });

@@ -219,7 +219,7 @@ userStories:
    - Copy current `prd.yml` and `progress.txt` to archive
    - Reset `progress.txt` with fresh header
 
-**The ralph.sh script handles this automatically** when you run it, but if you are manually updating prd.yml between runs, archive first.
+**The ralph.py script handles this automatically** when you run it, but if you are manually updating prd.yml between runs, archive first.
 
 ---
 

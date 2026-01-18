@@ -57,7 +57,7 @@ function handleInit(args) {
 
   // Required files
   const requiredFiles = [
-    { src: 'scripts/ralph/ralph.sh', dest: 'scripts/ralph/ralph.sh', executable: true },
+    { src: 'scripts/ralph/ralph.py', dest: 'scripts/ralph/ralph.py', executable: true },
     { src: 'scripts/ralph/prd.yml.example', dest: 'scripts/ralph/prd.yml.example', executable: false },
     { src: 'scripts/ralph/cursor/prompt.cursor.md', dest: 'scripts/ralph/cursor/prompt.cursor.md', executable: false },
     { src: 'scripts/ralph/cursor/prompt.convert-to-prd-yml.md', dest: 'scripts/ralph/cursor/prompt.convert-to-prd-yml.md', executable: false },
@@ -150,7 +150,7 @@ async function handleRun(args) {
   const iterations = flags.get('--iterations') || '10';
 
   const repoRoot = process.cwd();
-  const runnerScript = join(repoRoot, 'scripts', 'ralph', 'ralph.sh');
+  const runnerScript = join(repoRoot, 'scripts', 'ralph', 'ralph.py');
 
   if (!existsSync(runnerScript)) {
     console.error('Error: Ralph not initialized in this repository.');
@@ -160,7 +160,7 @@ async function handleRun(args) {
 
   // Execute the runner script with appropriate arguments
   const { spawn } = await import('child_process');
-  const child = spawn('bash', [runnerScript, iterations], {
+  const child = spawn('python3', [runnerScript, iterations], {
     stdio: 'inherit',
     cwd: repoRoot,
   });

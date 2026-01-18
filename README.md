@@ -24,7 +24,7 @@ Copy the Ralph templates into your project:
 # From your project root
 mkdir -p scripts/ralph
 cp -R /path/to/ralph/scripts/ralph/* scripts/ralph/
-chmod +x scripts/ralph/ralph.sh
+chmod +x scripts/ralph/ralph.py
 chmod +x scripts/ralph/cursor/convert-to-prd-yml.sh
 ```
 
@@ -48,7 +48,7 @@ This creates `scripts/ralph/prd.yml` with user stories structured for autonomous
 ### 3. Run Ralph
 
 ```bash
-./scripts/ralph/ralph.sh [max_iterations] [--cursor-timeout SECONDS]
+python3 scripts/ralph/ralph.py [max_iterations] [--cursor-timeout SECONDS]
 ```
 
 Default is 10 iterations.
@@ -61,10 +61,10 @@ The runner loop will invoke Cursor CLI repeatedly. The worker prompt instructs i
 Examples:
 ```bash
 # Run with default settings
-./scripts/ralph/ralph.sh 10
+python3 scripts/ralph/ralph.py 10
 
 # Run with a per-iteration timeout
-./scripts/ralph/ralph.sh 10 --cursor-timeout 1800
+python3 scripts/ralph/ralph.py 10 --cursor-timeout 1800
 ```
 
 Note: `--cursor-timeout` only applies if a `timeout` binary is available on your PATH. If it isn't, Ralph will run Cursor without a hard timeout.
@@ -73,7 +73,7 @@ Note: `--cursor-timeout` only applies if a `timeout` binary is available on your
 
 | File | Purpose |
 |------|---------|
-| `scripts/ralph/ralph.sh` | The bash loop that spawns fresh Cursor invocations |
+| `scripts/ralph/ralph.py` | The Python loop that spawns fresh Cursor invocations |
 | `scripts/ralph/cursor/prompt.cursor.md` | Instructions given to each Cursor iteration |
 | `scripts/ralph/cursor/convert-to-prd-yml.sh` | Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI |
 | `scripts/ralph/prd.yml` | User stories with `passes` status (the task list) |

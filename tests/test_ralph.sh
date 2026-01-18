@@ -12,10 +12,8 @@ TEST_DIR="$SCRIPT_DIR/test-tmp"
 CURRENT_VARIANT_NAME=""
 CURRENT_LAYOUT=""
 CURRENT_SOURCE_DIR=""
-RALPH_SCRIPT=""
 RALPH_PY_SCRIPT=""
 RALPH_WORK_DIR=""
-RALPH_SCRIPT_TYPE="bash"  # "bash" or "python"
 
 # Colors for output
 RED='\033[0;31m'
@@ -23,7 +21,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Helper function to run ralph script (bash or python)
+# Helper function to run ralph script (Python)
 run_ralph() {
   local iterations="$1"
   shift
@@ -32,11 +30,7 @@ run_ralph() {
   # Set test mode environment variable
   export RALPH_TEST_MODE=1
   
-  if [[ "$RALPH_SCRIPT_TYPE" == "python" ]]; then
-    python3 "$RALPH_PY_SCRIPT" "$iterations" $extra_args 2>&1 || true
-  else
-    bash "$RALPH_SCRIPT" "$iterations" $extra_args 2>&1 || true
-  fi
+  python3 "$RALPH_PY_SCRIPT" "$iterations" $extra_args 2>&1 || true
 }
 
 # Setup test environment
@@ -50,17 +44,14 @@ setup_test_env() {
   if [[ "$CURRENT_LAYOUT" == "scripts" ]]; then
     runner_dir="$project_dir/scripts/ralph"
     mkdir -p "$runner_dir/cursor"
-    cp "$CURRENT_SOURCE_DIR/ralph.sh" "$runner_dir/ralph.sh"
     cp "$CURRENT_SOURCE_DIR/ralph.py" "$runner_dir/ralph.py"
     cp "$CURRENT_SOURCE_DIR/prd.yml.example" "$runner_dir/prd.yml.example"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.cursor.md" "$runner_dir/cursor/prompt.cursor.md"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.convert-to-prd-yml.md" "$runner_dir/cursor/prompt.convert-to-prd-yml.md"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.cursor.test.md" "$runner_dir/cursor/prompt.cursor.test.md" 2>/dev/null || true
     cp "$CURRENT_SOURCE_DIR/cursor/convert-to-prd-yml.sh" "$runner_dir/cursor/convert-to-prd-yml.sh"
-    chmod +x "$runner_dir/ralph.sh"
     chmod +x "$runner_dir/ralph.py"
     chmod +x "$runner_dir/cursor/convert-to-prd-yml.sh"
-    RALPH_SCRIPT="$runner_dir/ralph.sh"
     RALPH_PY_SCRIPT="$runner_dir/ralph.py"
     RALPH_WORK_DIR="$runner_dir"
   else
@@ -135,9 +126,9 @@ test_cursor_worker() {
   OUTPUT=$(run_ralph 1)
 
   if echo "$OUTPUT" | grep -q "Stub cursor executed"; then
-    echo -e "${GREEN}PASS${NC}: Cursor worker is used ($RALPH_SCRIPT_TYPE)"
+    echo -e "${GREEN}PASS${NC}: Cursor worker is used"
   else
-    echo -e "${RED}FAIL${NC}: Cursor worker not used ($RALPH_SCRIPT_TYPE)"
+    echo -e "${RED}FAIL${NC}: Cursor worker not used"
     echo "Output: $OUTPUT"
     cleanup_test_env
     return 1
@@ -169,9 +160,9 @@ test_cursor_no_pty() {
   OUTPUT=$(run_ralph 1)
 
   if echo "$OUTPUT" | grep -q "stdin is not a TTY"; then
-    echo -e "${GREEN}PASS${NC}: Cursor invocation uses normal spawn (no PTY) ($RALPH_SCRIPT_TYPE)"
+    echo -e "${GREEN}PASS${NC}: Cursor invocation uses normal spawn (no PTY)"
   else
-    echo -e "${RED}FAIL${NC}: Cursor invocation may be using PTY ($RALPH_SCRIPT_TYPE)"
+    echo -e "${RED}FAIL${NC}: Cursor invocation may be using PTY"
     echo "Output: $OUTPUT"
     cleanup_test_env
     return 1
@@ -298,18 +289,8 @@ test_prd_yml_parsing_failure() {
   cleanup_test_env
 }
 
-run_tests_for_script() {
-  local script_type="$1"  # "bash" or "python"
-  RALPH_SCRIPT_TYPE="$script_type"
-  
-  local script_name=""
-  if [[ "$script_type" == "python" ]]; then
-    script_name="ralph.py"
-  else
-    script_name="ralph.sh"
-  fi
-  
-  echo "Testing $script_name..."
+run_tests() {
+  echo "Testing ralph.py..."
   echo ""
 
   local tests_passed=0
@@ -326,16 +307,16 @@ run_tests_for_script() {
 
   echo ""
   echo "========================================="
-  echo "Script: $script_name"
+  echo "Script: ralph.py"
   echo "Tests passed: $tests_passed"
   echo "Tests failed: $tests_failed"
   echo "========================================="
 
   if [ $tests_failed -eq 0 ]; then
-    echo -e "${GREEN}All tests passed for $script_name!${NC}"
+    echo -e "${GREEN}All tests passed!${NC}"
     return 0
   else
-    echo -e "${RED}Some tests failed for $script_name!${NC}"
+    echo -e "${RED}Some tests failed!${NC}"
     return 1
   fi
 }
@@ -352,42 +333,7 @@ run_variant() {
   echo "Running Ralph test suite (${CURRENT_VARIANT_NAME})..."
   echo ""
 
-  local bash_passed=0
-  local python_passed=0
-  local bash_failed=0
-  local python_failed=0
-
-  # Test bash script
-  if run_tests_for_script "bash"; then
-    bash_passed=1
-  else
-    bash_failed=1
-  fi
-
-  echo ""
-  echo ""
-
-  # Test python script
-  if run_tests_for_script "python"; then
-    python_passed=1
-  else
-    python_failed=1
-  fi
-
-  echo ""
-  echo "========================================="
-  echo "Variant: $CURRENT_VARIANT_NAME"
-  echo "Bash script: $([ $bash_failed -eq 0 ] && echo -e "${GREEN}PASS${NC}" || echo -e "${RED}FAIL${NC}")"
-  echo "Python script: $([ $python_failed -eq 0 ] && echo -e "${GREEN}PASS${NC}" || echo -e "${RED}FAIL${NC}")"
-  echo "========================================="
-
-  if [ $bash_failed -eq 0 ] && [ $python_failed -eq 0 ]; then
-    echo -e "${GREEN}All tests passed for both scripts!${NC}"
-    return 0
-  else
-    echo -e "${RED}Some tests failed!${NC}"
-    return 1
-  fi
+  run_tests
 }
 
 main() {

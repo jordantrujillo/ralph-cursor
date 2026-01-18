@@ -14,7 +14,7 @@ cd flowchart && npm run dev
 cd flowchart && npm run build
 
 # Run Ralph (from your project that has scripts/ralph/prd.yml)
-./scripts/ralph/ralph.sh [max_iterations] [--cursor-timeout SECONDS]
+python3 scripts/ralph/ralph.py [max_iterations] [--cursor-timeout SECONDS]
 
 # Convert PRD markdown to prd.yml using Cursor CLI
 ./scripts/ralph/cursor/convert-to-prd-yml.sh tasks/prd-[feature-name].md [--model MODEL] [--out OUT_YML]
@@ -22,7 +22,7 @@ cd flowchart && npm run build
 
 ## Key Files
 
-- `scripts/ralph/ralph.sh` - The bash loop (Cursor worker)
+- `scripts/ralph/ralph.py` - The Python loop (Cursor worker)
 - `scripts/ralph/cursor/prompt.cursor.md` - Instructions given to each Cursor iteration
 - `scripts/ralph/cursor/convert-to-prd-yml.sh` - Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI
 - `scripts/ralph/prd.yml.example` - Example PRD format
