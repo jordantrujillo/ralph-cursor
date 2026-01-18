@@ -27,9 +27,14 @@ import subprocess
 from pathlib import Path
 
 # Get script directory and package root
-SCRIPT_DIR = Path(__file__).parent.resolve()
+# Resolve symlinks to get the actual script location
+script_path = Path(__file__).resolve()
+SCRIPT_DIR = script_path.parent
 PACKAGE_ROOT = SCRIPT_DIR.parent
+# Try templates directory first, fall back to source directory
 TEMPLATES_DIR = PACKAGE_ROOT / 'templates'
+if not TEMPLATES_DIR.exists():
+    TEMPLATES_DIR = PACKAGE_ROOT
 
 
 def parse_flags(args):
@@ -69,7 +74,6 @@ def handle_init(args):
         {'src': 'scripts/ralph/prd.yml.example', 'dest': 'scripts/ralph/prd.yml.example', 'executable': False},
         {'src': 'scripts/ralph/cursor/prompt.cursor.md', 'dest': 'scripts/ralph/cursor/prompt.cursor.md', 'executable': False},
         {'src': 'scripts/ralph/cursor/prompt.convert-to-prd-yml.md', 'dest': 'scripts/ralph/cursor/prompt.convert-to-prd-yml.md', 'executable': False},
-        {'src': 'scripts/ralph/cursor/prompt.generate-prd.md', 'dest': 'scripts/ralph/cursor/prompt.generate-prd.md', 'executable': False},
         {'src': 'scripts/ralph/cursor/convert-to-prd-yml.sh', 'dest': 'scripts/ralph/cursor/convert-to-prd-yml.sh', 'executable': True},
     ]
 
@@ -80,6 +84,14 @@ def handle_init(args):
         src_path = TEMPLATES_DIR / file_info['src']
         dest_path = repo_root / file_info['dest']
         dest_dir = dest_path.parent
+
+        # Verify source file exists
+        if not src_path.exists():
+            print(f'Warning: Source file not found: {src_path}', file=sys.stderr)
+            print(f'  Looking in: {TEMPLATES_DIR}', file=sys.stderr)
+            print(f'  Package root: {PACKAGE_ROOT}', file=sys.stderr)
+            skipped.append(file_info['dest'])
+            continue
 
         # Create subdirectory if needed
         if not dest_dir.exists():
