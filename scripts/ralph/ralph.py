@@ -142,6 +142,14 @@ class RalphAgent:
                 f.write(f"Started: {datetime.now()}\n")
                 f.write("---\n")
     
+    def _find_cursor_binary(self):
+        """Find the cursor binary, checking cursor-agent, then agent"""
+        for binary in ["cursor-agent", "agent"]:
+            if self._command_exists(binary):
+                return binary
+        # Raise error if neither binary is found
+        raise FileNotFoundError("Neither 'cursor-agent' nor 'agent' binary found in PATH")
+    
     def _run_cursor_iteration(self, prompt_file):
         """Run a single Cursor iteration"""
         proc = None
@@ -149,9 +157,10 @@ class RalphAgent:
             with open(prompt_file, 'r') as f:
                 prompt_text = f.read()
             
-            # Build agent command (prompt text will be passed as argument, matching bash behavior)
+            # Build cursor command (prompt text will be passed as argument, matching bash behavior)
+            cursor_binary = self._find_cursor_binary()
             cmd = [
-                "agent",
+                cursor_binary,
                 "--model", self.model,
                 "--print",
                 "--force",
@@ -249,8 +258,11 @@ class RalphAgent:
         print(f"Worker: Cursor")
         print(f"Model: {self.model}")
         
-        # Use Cursor prompt file
-        prompt_file = self.script_dir / "cursor" / "prompt.cursor.md"
+        # Use Cursor prompt file (test mode if RALPH_TEST_MODE is set)
+        if os.environ.get("RALPH_TEST_MODE") == "1":
+            prompt_file = self.script_dir / "cursor" / "prompt.cursor.test.md"
+        else:
+            prompt_file = self.script_dir / "cursor" / "prompt.cursor.md"
         
         if not prompt_file.exists():
             print(f"Error: Prompt file not found: {prompt_file}", file=sys.stderr)

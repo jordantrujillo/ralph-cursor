@@ -96,8 +96,24 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   # Cursor worker: use cursor/prompt.cursor.md and execute cursor CLI
   # Uses non-interactive headless mode with file edits enabled
   # Always uses normal spawn (never PTY), stdin is closed (no interactive prompts)
-  PROMPT_FILE="$SCRIPT_DIR/cursor/prompt.cursor.md"
+  # Use test prompt if RALPH_TEST_MODE is set
+  if [[ "${RALPH_TEST_MODE:-}" == "1" ]]; then
+    PROMPT_FILE="$SCRIPT_DIR/cursor/prompt.cursor.test.md"
+  else
+    PROMPT_FILE="$SCRIPT_DIR/cursor/prompt.cursor.md"
+  fi
   PROMPT_TEXT=$(cat "$PROMPT_FILE")
+  
+  # Find cursor binary: check cursor-agent, then agent
+  CURSOR_BINARY=""
+  if command -v cursor-agent >/dev/null 2>&1; then
+    CURSOR_BINARY="cursor-agent"
+  elif command -v agent >/dev/null 2>&1; then
+    CURSOR_BINARY="agent"
+  else
+    echo "Error: Neither 'cursor-agent' nor 'agent' binary found in PATH" >&2
+    exit 1
+  fi
   
   # Execute cursor with: --model auto --print --force --approve-mcps
   # stdin is automatically closed when using command substitution in bash
@@ -105,14 +121,14 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   # Note: MCP cleanup is handled by Cursor CLI itself when processes exit normally
   # If MCP processes are orphaned, they may need manual cleanup (outside scope of this script)
   if command -v timeout >/dev/null 2>&1; then
-    OUTPUT=$(timeout "$CURSOR_TIMEOUT" cursor --model auto --print --force --approve-mcps "$PROMPT_TEXT" </dev/null 2>&1 | tee /dev/stderr) || true
+    OUTPUT=$(timeout "$CURSOR_TIMEOUT" "$CURSOR_BINARY" --model auto --print --force --approve-mcps "$PROMPT_TEXT" </dev/null 2>&1 | tee /dev/stderr) || true
     TIMEOUT_EXIT=$?
     if [[ $TIMEOUT_EXIT -eq 124 ]]; then
       echo "Warning: Cursor iteration timed out after ${CURSOR_TIMEOUT} seconds" >&2
     fi
   else
     # Fallback if timeout command is not available
-    OUTPUT=$(cursor --model auto --print --force --approve-mcps "$PROMPT_TEXT" </dev/null 2>&1 | tee /dev/stderr) || true
+    OUTPUT=$("$CURSOR_BINARY" --model auto --print --force --approve-mcps "$PROMPT_TEXT" </dev/null 2>&1 | tee /dev/stderr) || true
   fi
   
   # Check for completion signal
