@@ -68,6 +68,31 @@ fi
 chmod +x "$INSTALL_PATH"
 echo -e "${GREEN}Made executable${NC}"
 
+# Check for yq (recommended for YAML processing)
+echo ""
+echo "Checking dependencies..."
+if ! command -v yq >/dev/null 2>&1; then
+    echo ""
+    echo -e "${YELLOW}Note: yq is not installed (recommended for YAML processing)${NC}"
+    echo "  Install with:"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "    brew install yq"
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "    # On Debian/Ubuntu:"
+        echo "    sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64"
+        echo "    sudo chmod +x /usr/local/bin/yq"
+        echo ""
+        echo "    # Or install PyYAML as an alternative:"
+        echo "    pip install pyyaml"
+    else
+        echo "    # Visit https://github.com/mikefarah/yq/releases"
+        echo "    # Or install PyYAML as an alternative:"
+        echo "    pip install pyyaml"
+    fi
+else
+    echo -e "${GREEN}✓ yq is installed${NC}"
+fi
+
 # Check if install directory is in PATH
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     echo ""
