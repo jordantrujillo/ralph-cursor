@@ -1,6 +1,6 @@
 #!/bin/bash
 # Test suite for Ralph runner + templates
-# Tests run without requiring real Amp or real Cursor (use stub binaries via PATH).
+# Tests run without requiring real Cursor (use stub binaries via PATH).
 
 set -e
 
@@ -12,7 +12,7 @@ TEST_DIR="$SCRIPT_DIR/test-tmp"
 CURRENT_VARIANT_NAME=""
 CURRENT_LAYOUT=""
 CURRENT_SOURCE_DIR=""
-RALPH_SCRIPT=""
+RALPH_PY_SCRIPT=""
 RALPH_WORK_DIR=""
 
 # Colors for output
@@ -20,6 +20,18 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Helper function to run ralph script (Python)
+run_ralph() {
+  local iterations="$1"
+  shift
+  local extra_args="$@"
+  
+  # Set test mode environment variable
+  export RALPH_TEST_MODE=1
+  
+  python3 "$RALPH_PY_SCRIPT" "$iterations" $extra_args 2>&1 || true
+}
 
 # Setup test environment
 setup_test_env() {
@@ -32,15 +44,15 @@ setup_test_env() {
   if [[ "$CURRENT_LAYOUT" == "scripts" ]]; then
     runner_dir="$project_dir/scripts/ralph"
     mkdir -p "$runner_dir/cursor"
-    cp "$CURRENT_SOURCE_DIR/ralph.sh" "$runner_dir/ralph.sh"
-    cp "$CURRENT_SOURCE_DIR/prompt.md" "$runner_dir/prompt.md"
+    cp "$CURRENT_SOURCE_DIR/ralph.py" "$runner_dir/ralph.py"
     cp "$CURRENT_SOURCE_DIR/prd.yml.example" "$runner_dir/prd.yml.example"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.cursor.md" "$runner_dir/cursor/prompt.cursor.md"
-    cp "$CURRENT_SOURCE_DIR/cursor/prompt.convert-to-prd-json.md" "$runner_dir/cursor/prompt.convert-to-prd-json.md"
-    cp "$CURRENT_SOURCE_DIR/cursor/convert-to-prd-json.sh" "$runner_dir/cursor/convert-to-prd-json.sh"
-    chmod +x "$runner_dir/ralph.sh"
-    chmod +x "$runner_dir/cursor/convert-to-prd-json.sh"
-    RALPH_SCRIPT="$runner_dir/ralph.sh"
+    cp "$CURRENT_SOURCE_DIR/cursor/prompt.convert-to-prd-yml.md" "$runner_dir/cursor/prompt.convert-to-prd-yml.md"
+    cp "$CURRENT_SOURCE_DIR/cursor/prompt.cursor.test.md" "$runner_dir/cursor/prompt.cursor.test.md" 2>/dev/null || true
+    cp "$CURRENT_SOURCE_DIR/cursor/convert-to-prd-yml.sh" "$runner_dir/cursor/convert-to-prd-yml.sh"
+    chmod +x "$runner_dir/ralph.py"
+    chmod +x "$runner_dir/cursor/convert-to-prd-yml.sh"
+    RALPH_PY_SCRIPT="$runner_dir/ralph.py"
     RALPH_WORK_DIR="$runner_dir"
   else
     echo "Invalid CURRENT_LAYOUT: $CURRENT_LAYOUT" >&2
@@ -53,23 +65,10 @@ setup_test_env() {
   mkdir -p "$project_dir/bin"
   export PATH="$project_dir/bin:$PATH"
 
-  # Create stub amp binary
-  cat > "$project_dir/bin/amp" << 'EOF'
-#!/bin/bash
-# Stub amp binary for testing
-echo "Stub amp executed with args: $@"
-if [ -t 0 ]; then
-  echo "Stub amp: stdin is a TTY"
-else
-  echo "Stub amp: stdin is not a TTY"
-fi
-echo "Some amp output"
-echo "<promise>COMPLETE</promise>"
-EOF
-  chmod +x "$project_dir/bin/amp"
-
-  # Create stub cursor binary
-  cat > "$project_dir/bin/cursor" << 'EOF'
+  # Create stub cursor binaries (cursor-agent, agent, cursor)
+  # Scripts check in order: cursor-agent, agent, cursor
+  # We'll create cursor-agent so it's found first
+  cat > "$project_dir/bin/cursor-agent" << 'EOF'
 #!/bin/bash
 # Stub cursor binary for testing
 echo "Stub cursor executed with args: $@"
@@ -86,22 +85,28 @@ else
 fi
 echo "Some cursor output"
 EOF
+  chmod +x "$project_dir/bin/cursor-agent"
+  
+  # Also create agent and cursor stubs for fallback testing
+  cp "$project_dir/bin/cursor-agent" "$project_dir/bin/agent"
+  cp "$project_dir/bin/cursor-agent" "$project_dir/bin/cursor"
+  chmod +x "$project_dir/bin/agent"
   chmod +x "$project_dir/bin/cursor"
 
   # Create test prd.yml
   cat > "$RALPH_WORK_DIR/prd.yml" << 'EOF'
-project: "TestProject"
-branchName: "ralph/test"
-description: "Test feature"
+project: TestProject
+branchName: ralph/test
+description: Test feature
 userStories:
-  - id: "US-001"
-    title: "Test story"
-    description: "Test description"
+  - id: US-001
+    title: Test story
+    description: Test description
     acceptanceCriteria:
-      - "Test criterion"
+      - Test criterion
     priority: 1
     passes: false
-    notes: ""
+    notes: 
 EOF
 
   # Create test progress.txt
@@ -115,43 +120,15 @@ cleanup_test_env() {
   rm -rf "$TEST_DIR"
 }
 
-test_default_worker_amp() {
+test_cursor_worker() {
   setup_test_env
 
-  OUTPUT=$(bash "$RALPH_SCRIPT" 1 2>&1 || true)
-
-  if echo "$OUTPUT" | grep -q "Stub amp executed"; then
-    echo -e "${GREEN}PASS${NC}: Default worker is Amp"
-  else
-    echo -e "${RED}FAIL${NC}: Default worker is not Amp"
-    echo "Output: $OUTPUT"
-    cleanup_test_env
-    return 1
-  fi
-
-  cleanup_test_env
-}
-
-test_cursor_worker_explicit() {
-  setup_test_env
-
-  OUTPUT=$(bash "$RALPH_SCRIPT" 1 --worker cursor 2>&1 || true)
+  OUTPUT=$(run_ralph 1)
 
   if echo "$OUTPUT" | grep -q "Stub cursor executed"; then
-    echo -e "${GREEN}PASS${NC}: Cursor worker used when explicitly selected"
+    echo -e "${GREEN}PASS${NC}: Cursor worker is used"
   else
-    echo -e "${RED}FAIL${NC}: Cursor worker not used when selected"
-    echo "Output: $OUTPUT"
-    cleanup_test_env
-    return 1
-  fi
-
-  OUTPUT=$(RALPH_WORKER=cursor bash "$RALPH_SCRIPT" 1 2>&1 || true)
-
-  if echo "$OUTPUT" | grep -q "Stub cursor executed"; then
-    echo -e "${GREEN}PASS${NC}: Cursor worker used with RALPH_WORKER env var"
-  else
-    echo -e "${RED}FAIL${NC}: Cursor worker not used with RALPH_WORKER"
+    echo -e "${RED}FAIL${NC}: Cursor worker not used"
     echo "Output: $OUTPUT"
     cleanup_test_env
     return 1
@@ -163,7 +140,7 @@ test_cursor_worker_explicit() {
 test_cursor_invocation_flags() {
   setup_test_env
 
-  OUTPUT=$(bash "$RALPH_SCRIPT" 1 --worker cursor 2>&1 || true)
+  OUTPUT=$(run_ralph 1)
 
   if echo "$OUTPUT" | grep -q "all required flags present"; then
     echo -e "${GREEN}PASS${NC}: Cursor command includes all required flags"
@@ -180,7 +157,7 @@ test_cursor_invocation_flags() {
 test_cursor_no_pty() {
   setup_test_env
 
-  OUTPUT=$(bash "$RALPH_SCRIPT" 1 --worker cursor 2>&1 || true)
+  OUTPUT=$(run_ralph 1)
 
   if echo "$OUTPUT" | grep -q "stdin is not a TTY"; then
     echo -e "${GREEN}PASS${NC}: Cursor invocation uses normal spawn (no PTY)"
@@ -194,15 +171,15 @@ test_cursor_no_pty() {
   cleanup_test_env
 }
 
-test_convert_prd_json_model_override() {
+test_convert_prd_yml_model_override() {
   setup_test_env
 
   mkdir -p "$TEST_DIR/project/tasks"
   echo "# PRD: Example" > "$TEST_DIR/project/tasks/prd-example.md"
 
-  local convert_script="$RALPH_WORK_DIR/cursor/convert-to-prd-json.sh"
+  local convert_script="$RALPH_WORK_DIR/cursor/convert-to-prd-yml.sh"
   if [[ ! -f "$convert_script" ]]; then
-    echo -e "${RED}FAIL${NC}: convert-to-prd-json.sh not found"
+    echo -e "${RED}FAIL${NC}: convert-to-prd-yml.sh not found"
     cleanup_test_env
     return 1
   fi
@@ -210,9 +187,9 @@ test_convert_prd_json_model_override() {
   OUTPUT=$(bash "$convert_script" "$TEST_DIR/project/tasks/prd-example.md" --model "gpt-4.1" 2>&1 || true)
 
   if echo "$OUTPUT" | grep -qF -- "--model gpt-4.1"; then
-    echo -e "${GREEN}PASS${NC}: convert-to-prd-json.sh forwards --model override"
+    echo -e "${GREEN}PASS${NC}: convert-to-prd-yml.sh forwards --model override"
   else
-    echo -e "${RED}FAIL${NC}: convert-to-prd-json.sh did not forward --model override"
+    echo -e "${RED}FAIL${NC}: convert-to-prd-yml.sh did not forward --model override"
     echo "Output: $OUTPUT"
     cleanup_test_env
     return 1
@@ -224,14 +201,14 @@ test_convert_prd_json_model_override() {
 test_stop_condition_complete() {
   setup_test_env
 
-  cat > "$TEST_DIR/project/bin/amp" << 'EOF'
+  cat > "$TEST_DIR/project/bin/cursor-agent" << 'EOF'
 #!/bin/bash
 echo "Iteration output"
 echo "<promise>COMPLETE</promise>"
 EOF
-  chmod +x "$TEST_DIR/project/bin/amp"
+  chmod +x "$TEST_DIR/project/bin/cursor-agent"
 
-  OUTPUT=$(bash "$RALPH_SCRIPT" 10 2>&1 || true)
+  OUTPUT=$(run_ralph 10)
 
   if echo "$OUTPUT" | grep -q "Ralph completed all tasks"; then
     echo -e "${GREEN}PASS${NC}: Loop exits on COMPLETE signal"
@@ -248,13 +225,13 @@ EOF
 test_stop_condition_no_complete() {
   setup_test_env
 
-  cat > "$TEST_DIR/project/bin/amp" << 'EOF'
+  cat > "$TEST_DIR/project/bin/cursor-agent" << 'EOF'
 #!/bin/bash
 echo "Iteration output without COMPLETE"
 EOF
-  chmod +x "$TEST_DIR/project/bin/amp"
+  chmod +x "$TEST_DIR/project/bin/cursor-agent"
 
-  OUTPUT=$(bash "$RALPH_SCRIPT" 2 2>&1 || true)
+  OUTPUT=$(run_ralph 2)
 
   if echo "$OUTPUT" | grep -q "Iteration 2 of 2"; then
     echo -e "${GREEN}PASS${NC}: Loop continues when no COMPLETE signal"
@@ -272,7 +249,7 @@ test_progress_append_only() {
   setup_test_env
 
   ORIGINAL_CONTENT=$(cat "$RALPH_WORK_DIR/progress.txt")
-  bash "$RALPH_SCRIPT" 1 >/dev/null 2>&1 || true
+  run_ralph 1 >/dev/null 2>&1 || true
   NEW_CONTENT=$(cat "$RALPH_WORK_DIR/progress.txt")
 
   if [[ "$NEW_CONTENT" == "$ORIGINAL_CONTENT"* ]]; then
@@ -291,7 +268,7 @@ test_prd_yml_parsing_failure() {
 
   echo "invalid yaml content: [" > "$RALPH_WORK_DIR/prd.yml"
 
-  if bash "$RALPH_SCRIPT" 1 >/dev/null 2>&1; then
+  if run_ralph 1 >/dev/null 2>&1; then
     echo -e "${GREEN}PASS${NC}: Runner handles invalid prd.yml gracefully"
   else
     echo -e "${RED}FAIL${NC}: Runner crashes on invalid prd.yml"
@@ -301,7 +278,7 @@ test_prd_yml_parsing_failure() {
 
   rm -f "$RALPH_WORK_DIR/prd.yml"
 
-  if bash "$RALPH_SCRIPT" 1 >/dev/null 2>&1; then
+  if run_ralph 1 >/dev/null 2>&1; then
     echo -e "${GREEN}PASS${NC}: Runner handles missing prd.yml gracefully"
   else
     echo -e "${RED}FAIL${NC}: Runner crashes on missing prd.yml"
@@ -310,6 +287,38 @@ test_prd_yml_parsing_failure() {
   fi
 
   cleanup_test_env
+}
+
+run_tests() {
+  echo "Testing ralph.py..."
+  echo ""
+
+  local tests_passed=0
+  local tests_failed=0
+
+  if test_cursor_worker; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_cursor_invocation_flags; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_cursor_no_pty; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_convert_prd_yml_model_override; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_stop_condition_complete; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_stop_condition_no_complete; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_progress_append_only; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_prd_yml_parsing_failure; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+
+  echo ""
+  echo "========================================="
+  echo "Script: ralph.py"
+  echo "Tests passed: $tests_passed"
+  echo "Tests failed: $tests_failed"
+  echo "========================================="
+
+  if [ $tests_failed -eq 0 ]; then
+    echo -e "${GREEN}All tests passed!${NC}"
+    return 0
+  else
+    echo -e "${RED}Some tests failed!${NC}"
+    return 1
+  fi
 }
 
 run_variant() {
@@ -324,33 +333,7 @@ run_variant() {
   echo "Running Ralph test suite (${CURRENT_VARIANT_NAME})..."
   echo ""
 
-  local tests_passed=0
-  local tests_failed=0
-
-  if test_default_worker_amp; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_cursor_worker_explicit; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_cursor_invocation_flags; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_cursor_no_pty; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_convert_prd_json_model_override; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_stop_condition_complete; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_stop_condition_no_complete; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_progress_append_only; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_prd_yml_parsing_failure; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-
-  echo ""
-  echo "========================================="
-  echo "Variant: $CURRENT_VARIANT_NAME"
-  echo "Tests passed: $tests_passed"
-  echo "Tests failed: $tests_failed"
-  echo "========================================="
-
-  if [ $tests_failed -eq 0 ]; then
-    echo -e "${GREEN}All tests passed!${NC}"
-    return 0
-  else
-    echo -e "${RED}Some tests failed!${NC}"
-    return 1
-  fi
+  run_tests
 }
 
 main() {

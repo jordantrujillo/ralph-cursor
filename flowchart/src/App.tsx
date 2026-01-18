@@ -38,9 +38,9 @@ const allSteps: { id: string; label: string; description: string; phase: Phase }
   // Setup phase (vertical)
   { id: '1', label: 'You write a PRD', description: 'Define what you want to build', phase: 'setup' },
   { id: '2', label: 'Convert to prd.yml', description: 'Break into small user stories', phase: 'setup' },
-  { id: '3', label: 'Run ralph.sh', description: 'Starts the autonomous loop', phase: 'setup' },
+  { id: '3', label: 'Run ralph.py', description: 'Starts the autonomous loop', phase: 'setup' },
   // Loop phase
-  { id: '4', label: 'Amp picks a story', description: 'Finds next passes: false', phase: 'loop' },
+  { id: '4', label: 'Agent picks a story', description: 'Finds next passes: false', phase: 'loop' },
   { id: '5', label: 'Implements it', description: 'Writes code, runs tests', phase: 'loop' },
   { id: '6', label: 'Commits changes', description: 'If tests pass', phase: 'loop' },
   { id: '7', label: 'Updates prd.yml', description: 'Sets passes: true', phase: 'loop' },
@@ -56,16 +56,13 @@ const notes = [
     appearsWithStep: 2,
     position: { x: 340, y: 100 },
     color: { bg: '#f5f0ff', border: '#8b5cf6' },
-    content: `{
-  "id": "US-001",
-  "title": "Add priority field to database",
-  "acceptanceCriteria": [
-    "Add priority column to tasks table",
-    "Generate and run migration",
-    "Typecheck passes"
-  ],
-  "passes": false
-}`,
+    content: `id: "US-001"
+title: "Add priority field to database"
+acceptanceCriteria:
+  - "Add priority column to tasks table"
+  - "Generate and run migration"
+  - "Typecheck passes"
+passes: false`,
   },
   {
     id: 'note-2',
@@ -325,7 +322,7 @@ function App() {
   return (
     <div className="app-container">
       <div className="header">
-        <h1>How Ralph Works with Amp</h1>
+        <h1>How Ralph Works with any Agent</h1>
         <p>Autonomous AI agent loop for completing PRDs</p>
       </div>
       <div className="flow-container">

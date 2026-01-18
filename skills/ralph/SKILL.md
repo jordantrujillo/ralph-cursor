@@ -18,21 +18,29 @@ Take a PRD (markdown file or text) and convert it to `prd.yml` in your ralph dir
 ## Output Format
 
 ```yaml
-project: "[Project Name]"
-branchName: "ralph/[feature-name-kebab-case]"
-description: "[Feature description from PRD title/intro]"
+project: MyApp
+branchName: ralph/feature-name-kebab-case
+description: Feature description from PRD title/intro
 userStories:
-  - id: "US-001"
-    title: "[Story title]"
-    description: "As a [user], I want [feature] so that [benefit]"
+  - id: US-001
+    title: Story title
+    description: As a user, I want feature so that benefit
     acceptanceCriteria:
-      - "Criterion 1"
-      - "Criterion 2"
-      - "Typecheck passes"
+      - Criterion 1
+      - Criterion 2
+      - Typecheck passes
     priority: 1
     passes: false
-    notes: ""
+    notes: 
 ```
+
+**Important: Do NOT use quotes around YAML values unless necessary.** Quotes are only needed for:
+- Strings starting with special characters like `@`, `*`, `&`, `!`, `|`, `>`, `%`
+- Strings containing colons followed by spaces (e.g., `key: value` as a string value)
+- Strings that would be interpreted as numbers/booleans/null (e.g., `"true"`, `"123"`, `"null"`)
+- Empty strings (use `notes: ` without quotes instead of `notes: ""`)
+
+For normal text values, omit quotes to save tokens.
 
 ---
 
@@ -40,7 +48,7 @@ userStories:
 
 **Each story must be completable in ONE Ralph iteration (one context window).**
 
-Ralph spawns a fresh Amp instance per iteration with no memory of previous work. If a story is too big, the LLM runs out of context before finishing and produces broken code.
+Ralph spawns a fresh Cursor instance per iteration with no memory of previous work. If a story is too big, the LLM runs out of context before finishing and produces broken code.
 
 ### Right-sized stories:
 - Add a database column and migration
@@ -156,54 +164,54 @@ Add ability to mark tasks with different statuses.
 
 **Output prd.yml:**
 ```yaml
-project: "TaskApp"
-branchName: "ralph/task-status"
-description: "Task Status Feature - Track task progress with status indicators"
+project: TaskApp
+branchName: ralph/task-status
+description: Task Status Feature - Track task progress with status indicators
 userStories:
-  - id: "US-001"
-    title: "Add status field to tasks table"
-    description: "As a developer, I need to store task status in the database."
+  - id: US-001
+    title: Add status field to tasks table
+    description: As a developer, I need to store task status in the database.
     acceptanceCriteria:
-      - "Add status column: 'pending' | 'in_progress' | 'done' (default 'pending')"
-      - "Generate and run migration successfully"
-      - "Typecheck passes"
+      - Add status column: 'pending' | 'in_progress' | 'done' (default 'pending')
+      - Generate and run migration successfully
+      - Typecheck passes
     priority: 1
     passes: false
-    notes: ""
-  - id: "US-002"
-    title: "Display status badge on task cards"
-    description: "As a user, I want to see task status at a glance."
+    notes: 
+  - id: US-002
+    title: Display status badge on task cards
+    description: As a user, I want to see task status at a glance.
     acceptanceCriteria:
-      - "Each task card shows colored status badge"
-      - "Badge colors: gray=pending, blue=in_progress, green=done"
-      - "Typecheck passes"
-      - "Verify in browser using dev-browser skill"
+      - Each task card shows colored status badge
+      - Badge colors: gray=pending, blue=in_progress, green=done
+      - Typecheck passes
+      - Verify in browser using dev-browser skill
     priority: 2
     passes: false
-    notes: ""
-  - id: "US-003"
-    title: "Add status toggle to task list rows"
-    description: "As a user, I want to change task status directly from the list."
+    notes: 
+  - id: US-003
+    title: Add status toggle to task list rows
+    description: As a user, I want to change task status directly from the list.
     acceptanceCriteria:
-      - "Each row has status dropdown or toggle"
-      - "Changing status saves immediately"
-      - "UI updates without page refresh"
-      - "Typecheck passes"
-      - "Verify in browser using dev-browser skill"
+      - Each row has status dropdown or toggle
+      - Changing status saves immediately
+      - UI updates without page refresh
+      - Typecheck passes
+      - Verify in browser using dev-browser skill
     priority: 3
     passes: false
-    notes: ""
-  - id: "US-004"
-    title: "Filter tasks by status"
-    description: "As a user, I want to filter the list to see only certain statuses."
+    notes: 
+  - id: US-004
+    title: Filter tasks by status
+    description: As a user, I want to filter the list to see only certain statuses.
     acceptanceCriteria:
-      - "Filter dropdown: All | Pending | In Progress | Done"
-      - "Filter persists in URL params"
-      - "Typecheck passes"
-      - "Verify in browser using dev-browser skill"
+      - Filter dropdown: All | Pending | In Progress | Done
+      - Filter persists in URL params
+      - Typecheck passes
+      - Verify in browser using dev-browser skill
     priority: 4
     passes: false
-    notes: ""
+    notes: 
 ```
 
 ---
@@ -219,7 +227,7 @@ userStories:
    - Copy current `prd.yml` and `progress.txt` to archive
    - Reset `progress.txt` with fresh header
 
-**The ralph.sh script handles this automatically** when you run it, but if you are manually updating prd.yml between runs, archive first.
+**The ralph.py script handles this automatically** when you run it, but if you are manually updating prd.yml between runs, archive first.
 
 ---
 

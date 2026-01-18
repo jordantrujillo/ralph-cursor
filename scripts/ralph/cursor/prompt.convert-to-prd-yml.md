@@ -9,21 +9,29 @@ Take a PRD (markdown file, typically at `tasks/prd-[feature-name].md`) and conve
 ## Output Format
 
 ```yaml
-project: "[Project Name]"
-branchName: "ralph/[feature-name-kebab-case]"
-description: "[Feature description from PRD title/intro]"
+project: MyApp
+branchName: ralph/feature-name-kebab-case
+description: Feature description from PRD title/intro
 userStories:
-  - id: "US-001"
-    title: "[Story title]"
-    description: "As a [user], I want [feature] so that [benefit]"
+  - id: US-001
+    title: Story title
+    description: As a user, I want feature so that benefit
     acceptanceCriteria:
-      - "Criterion 1"
-      - "Criterion 2"
-      - "Typecheck passes"
+      - Criterion 1
+      - Criterion 2
+      - Typecheck passes
     priority: 1
     passes: false
-    notes: ""
+    notes: 
 ```
+
+**Important: Do NOT use quotes around YAML values unless necessary.** Quotes are only needed for:
+- Strings starting with special characters like `@`, `*`, `&`, `!`, `|`, `>`, `%`
+- Strings containing colons followed by spaces (e.g., `key: value` as a string value)
+- Strings that would be interpreted as numbers/booleans/null (e.g., `"true"`, `"123"`, `"null"`)
+- Empty strings (use `notes: ` without quotes instead of `notes: ""`)
+
+For normal text values, omit quotes to save tokens.
 
 ## Story Size: The Number One Rule
 

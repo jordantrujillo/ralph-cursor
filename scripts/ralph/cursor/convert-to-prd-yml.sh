@@ -2,7 +2,7 @@
 # Convert PRD markdown -> prd.yml using Cursor CLI (template version).
 #
 # Usage:
-# ./scripts/ralph/cursor/convert-to-prd-json.sh <path-to-prd-markdown> [--model MODEL] [--out OUT_YML]
+# ./scripts/ralph/cursor/convert-to-prd-yml.sh <path-to-prd-markdown> [--model MODEL] [--out OUT_YML]
 #
 # Defaults:
 # - MODEL: "auto"
@@ -50,7 +50,7 @@ if [[ -z "$PRD_MD_FILE" ]]; then
   exit 2
 fi
 
-PROMPT_TEMPLATE_FILE="$SCRIPT_DIR/prompt.convert-to-prd-json.md"
+PROMPT_TEMPLATE_FILE="$SCRIPT_DIR/prompt.convert-to-prd-yml.md"
 
 if [[ ! -f "$PROMPT_TEMPLATE_FILE" ]]; then
   echo "Error: missing prompt template: $PROMPT_TEMPLATE_FILE" >&2

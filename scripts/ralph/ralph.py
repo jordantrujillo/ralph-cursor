@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
 Ralph Wiggum - Long-running AI agent loop
-Usage: ./ralph.py [max_iterations] [--worker amp|cursor] [--cursor-timeout SECONDS] [--model MODEL]
-or set RALPH_WORKER environment variable (amp|cursor)
-or set RALPH_MODEL environment variable (for cursor worker)
-Default worker is 'cursor' if not specified
-Default model is 'auto' if not specified (only applies to cursor worker)
+Usage: ./ralph.py [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
+or set RALPH_MODEL environment variable
+Default model is 'auto' if not specified
+Uses Cursor CLI as the worker
 """
 
 import argparse
@@ -17,17 +16,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:
-    print("Error: PyYAML is required. Install with: pip install pyyaml", file=sys.stderr)
-    sys.exit(1)
-
 
 class RalphAgent:
-    def __init__(self, max_iterations=10, worker="cursor", cursor_timeout=1800, model="auto"):
+    def __init__(self, max_iterations=10, cursor_timeout=1800, model="auto"):
         self.max_iterations = max_iterations
-        self.worker = worker
         self.cursor_timeout = cursor_timeout
         self.model = model
         self.running_processes = []
@@ -43,11 +35,6 @@ class RalphAgent:
         self.progress_file = self.script_dir / "progress.txt"
         self.archive_dir = self.script_dir / "archive"
         self.last_branch_file = self.script_dir / ".last-branch"
-        
-        # Validate worker
-        if self.worker not in ["amp", "cursor"]:
-            print(f"Error: Worker must be 'amp' or 'cursor' (got: {self.worker})", file=sys.stderr)
-            sys.exit(1)
     
     def _signal_handler(self, signum, frame):
         """Handle Ctrl+C and other termination signals"""
@@ -77,14 +64,31 @@ class RalphAgent:
         self.running_processes.clear()
     
     def _get_branch_name(self):
-        """Get branch name from PRD file"""
+        """Get branch name from PRD file using yq or Python fallback"""
         if not self.prd_file.exists():
             return None
+        
+        # Try yq first
         try:
+            result = subprocess.run(
+                ['yq', '-r', '.branchName // empty', str(self.prd_file)],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                branch = result.stdout.strip()
+                return branch if branch else None
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        
+        # Fallback to Python with yaml if yq not available
+        try:
+            import yaml
             with open(self.prd_file, 'r') as f:
                 prd_data = yaml.safe_load(f)
                 return prd_data.get('branchName') if prd_data else None
-        except (yaml.YAMLError, KeyError, TypeError):
+        except (ImportError, Exception):
             return None
     
     def _archive_previous_run(self):
@@ -138,46 +142,13 @@ class RalphAgent:
                 f.write(f"Started: {datetime.now()}\n")
                 f.write("---\n")
     
-    def _run_amp_iteration(self, prompt_file):
-        """Run a single Amp iteration"""
-        proc = None
-        try:
-            with open(prompt_file, 'r') as f:
-                prompt_text = f.read()
-            
-            # Run amp command
-            proc = subprocess.Popen(
-                ["amp", "--dangerously-allow-all"],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True
-            )
-            self.running_processes.append(proc)
-            
-            # Send prompt and get output
-            stdout, _ = proc.communicate(input=prompt_text, timeout=None)
-            
-            # Also print to stderr for real-time viewing
-            print(stdout, file=sys.stderr, end='')
-            
-            return stdout
-        except subprocess.TimeoutExpired:
-            if proc is not None:
-                proc.kill()
-            return ""
-        except Exception as e:
-            print(f"Error running amp: {e}", file=sys.stderr)
-            if proc is not None and proc.poll() is None:
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=1)
-                except (subprocess.TimeoutExpired, Exception):
-                    try:
-                        proc.kill()
-                    except Exception:
-                        pass
-            return ""
+    def _find_cursor_binary(self):
+        """Find the cursor binary, checking cursor-agent, then agent"""
+        for binary in ["cursor-agent", "agent"]:
+            if self._command_exists(binary):
+                return binary
+        # Raise error if neither binary is found
+        raise FileNotFoundError("Neither 'cursor-agent' nor 'agent' binary found in PATH")
     
     def _run_cursor_iteration(self, prompt_file):
         """Run a single Cursor iteration"""
@@ -186,9 +157,10 @@ class RalphAgent:
             with open(prompt_file, 'r') as f:
                 prompt_text = f.read()
             
-            # Build agent command (prompt text will be passed as argument, matching bash behavior)
+            # Build cursor command (prompt text will be passed as argument, matching bash behavior)
+            cursor_binary = self._find_cursor_binary()
             cmd = [
-                "agent",
+                cursor_binary,
                 "--model", self.model,
                 "--print",
                 "--force",
@@ -283,14 +255,13 @@ class RalphAgent:
         self._initialize_progress_file()
         
         print(f"Starting Ralph - Max iterations: {self.max_iterations}")
-        print(f"Worker: {self.worker}")
-        if self.worker == "cursor":
-            print(f"Model: {self.model}")
+        print(f"Worker: Cursor")
+        print(f"Model: {self.model}")
         
-        # Select prompt file based on worker
-        if self.worker == "amp":
-            prompt_file = self.script_dir / "prompt.md"
-        else:  # cursor
+        # Use Cursor prompt file (test mode if RALPH_TEST_MODE is set)
+        if os.environ.get("RALPH_TEST_MODE") == "1":
+            prompt_file = self.script_dir / "cursor" / "prompt.cursor.test.md"
+        else:
             prompt_file = self.script_dir / "cursor" / "prompt.cursor.md"
         
         if not prompt_file.exists():
@@ -304,14 +275,11 @@ class RalphAgent:
             
             print("")
             print("═══════════════════════════════════════════════════════")
-            print(f"  Ralph Iteration {i} of {self.max_iterations} (Worker: {self.worker})")
+            print(f"  Ralph Iteration {i} of {self.max_iterations} (Worker: Cursor)")
             print("═══════════════════════════════════════════════════════")
             
             # Run iteration
-            if self.worker == "amp":
-                output = self._run_amp_iteration(prompt_file)
-            else:  # cursor
-                output = self._run_cursor_iteration(prompt_file)
+            output = self._run_cursor_iteration(prompt_file)
             
             # Remove completed process from tracking
             self.running_processes = [p for p in self.running_processes if p.poll() is None]
@@ -342,8 +310,6 @@ class RalphAgent:
 def main():
     """Main entry point"""
     # Parse environment variables
-    worker = os.environ.get("RALPH_WORKER", "cursor")
-    
     # Parse cursor_timeout with error handling
     try:
         cursor_timeout = int(os.environ.get("RALPH_CURSOR_TIMEOUT", "1800"))
@@ -358,7 +324,7 @@ def main():
     
     # Parse command line arguments
     parser = argparse.ArgumentParser(
-        description="Ralph Wiggum - Long-running AI agent loop",
+        description="Ralph Wiggum - Long-running AI agent loop (uses Cursor CLI)",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
@@ -367,12 +333,6 @@ def main():
         nargs="?",
         default=10,
         help="Maximum number of iterations (default: 10)"
-    )
-    parser.add_argument(
-        "--worker",
-        choices=["amp", "cursor"],
-        default=worker,
-        help="Worker type: amp or cursor (default: from RALPH_WORKER env or 'cursor')"
     )
     parser.add_argument(
         "--cursor-timeout",
@@ -392,7 +352,6 @@ def main():
     # Create and run agent
     agent = RalphAgent(
         max_iterations=args.max_iterations,
-        worker=args.worker,
         cursor_timeout=args.cursor_timeout,
         model=args.model
     )
