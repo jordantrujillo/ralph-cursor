@@ -16,12 +16,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:
-    print("Error: PyYAML is required. Install with: pip install pyyaml", file=sys.stderr)
-    sys.exit(1)
-
 
 class RalphAgent:
     def __init__(self, max_iterations=10, cursor_timeout=1800, model="auto"):
@@ -70,14 +64,31 @@ class RalphAgent:
         self.running_processes.clear()
     
     def _get_branch_name(self):
-        """Get branch name from PRD file"""
+        """Get branch name from PRD file using yq or Python fallback"""
         if not self.prd_file.exists():
             return None
+        
+        # Try yq first
         try:
+            result = subprocess.run(
+                ['yq', '-r', '.branchName // empty', str(self.prd_file)],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                branch = result.stdout.strip()
+                return branch if branch else None
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        
+        # Fallback to Python with yaml if yq not available
+        try:
+            import yaml
             with open(self.prd_file, 'r') as f:
                 prd_data = yaml.safe_load(f)
                 return prd_data.get('branchName') if prd_data else None
-        except (yaml.YAMLError, KeyError, TypeError):
+        except (ImportError, Exception):
             return None
     
     def _archive_previous_run(self):
