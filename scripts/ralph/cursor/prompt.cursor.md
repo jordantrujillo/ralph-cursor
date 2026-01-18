@@ -13,7 +13,7 @@ You are an autonomous coding agent working on a software project using Cursor.
 4. **Check out/create phase branch:**
    - Get the `branchName` for the current phase
    - If branch doesn't exist:
-     - If this is phase 1: Create branch from `main`
+     - If this is phase 1: Create branch from the current branch (whatever branch you're currently on)
      - If this is phase N (N > 1): Create branch from the previous phase's branch
    - Check out the phase branch
 5. Pick the **highest priority** user story from the current phase where `passes: false`
@@ -135,7 +135,7 @@ After completing a user story, check completion status:
 ## Phase Branch Management
 
 When working with phases:
-- **Phase 1 branch:** Created from `main`
+- **Phase 1 branch:** Created from the current branch (whatever branch you're on when starting Ralph)
 - **Phase N branch (N > 1):** Created from the previous phase's branch
 - This allows each phase to be reviewed as a separate PR
 - Each phase branch contains only the work from that phase (plus previous phases as base)
