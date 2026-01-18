@@ -45,9 +45,9 @@ test('ralph init creates scripts/ralph/ directory and files', async () => {
       'scripts/ralph/prompt.md',
       'scripts/ralph/prd.yml.example',
       'scripts/ralph/cursor/prompt.cursor.md',
-      'scripts/ralph/cursor/prompt.convert-to-prd-json.md',
+      'scripts/ralph/cursor/prompt.convert-to-prd-yml.md',
       'scripts/ralph/cursor/prompt.generate-prd.md',
-      'scripts/ralph/cursor/convert-to-prd-json.sh',
+      'scripts/ralph/cursor/convert-to-prd-yml.sh',
     ];
 
     for (const file of requiredFiles) {
@@ -66,11 +66,11 @@ test('ralph init creates scripts/ralph/ directory and files', async () => {
       assert.fail('ralph.sh is not executable');
     }
 
-    // Check that convert-to-prd-json.sh is executable
+    // Check that convert-to-prd-yml.sh is executable
     try {
-      await access(join(testDir, 'scripts/ralph/cursor/convert-to-prd-json.sh'), constants.X_OK);
+      await access(join(testDir, 'scripts/ralph/cursor/convert-to-prd-yml.sh'), constants.X_OK);
     } catch (err) {
-      assert.fail('convert-to-prd-json.sh is not executable');
+      assert.fail('convert-to-prd-yml.sh is not executable');
     }
 
     assert(result.stdout.includes('Created') || result.stdout.includes('file'), 'Should show files were created');
@@ -261,7 +261,7 @@ test('ralph init installs cursor files', async () => {
 
     // Check cursor files exist
     await access(join(testDir, 'scripts/ralph/cursor/prompt.cursor.md'), constants.F_OK);
-    await access(join(testDir, 'scripts/ralph/cursor/convert-to-prd-json.sh'), constants.F_OK);
+    await access(join(testDir, 'scripts/ralph/cursor/convert-to-prd-yml.sh'), constants.F_OK);
 
     // Check common files exist
     await access(join(testDir, 'scripts/ralph/ralph.sh'), constants.F_OK);

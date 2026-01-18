@@ -60,9 +60,9 @@ function handleInit(args) {
     { src: 'scripts/ralph/ralph.sh', dest: 'scripts/ralph/ralph.sh', executable: true },
     { src: 'scripts/ralph/prd.yml.example', dest: 'scripts/ralph/prd.yml.example', executable: false },
     { src: 'scripts/ralph/cursor/prompt.cursor.md', dest: 'scripts/ralph/cursor/prompt.cursor.md', executable: false },
-    { src: 'scripts/ralph/cursor/prompt.convert-to-prd-json.md', dest: 'scripts/ralph/cursor/prompt.convert-to-prd-json.md', executable: false },
+    { src: 'scripts/ralph/cursor/prompt.convert-to-prd-yml.md', dest: 'scripts/ralph/cursor/prompt.convert-to-prd-yml.md', executable: false },
     { src: 'scripts/ralph/cursor/prompt.generate-prd.md', dest: 'scripts/ralph/cursor/prompt.generate-prd.md', executable: false },
-    { src: 'scripts/ralph/cursor/convert-to-prd-json.sh', dest: 'scripts/ralph/cursor/convert-to-prd-json.sh', executable: true },
+    { src: 'scripts/ralph/cursor/convert-to-prd-yml.sh', dest: 'scripts/ralph/cursor/convert-to-prd-yml.sh', executable: true },
   ];
 
   const created = [];

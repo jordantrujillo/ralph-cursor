@@ -17,14 +17,14 @@ cd flowchart && npm run build
 ./scripts/ralph/ralph.sh [max_iterations] [--cursor-timeout SECONDS]
 
 # Convert PRD markdown to prd.yml using Cursor CLI
-./scripts/ralph/cursor/convert-to-prd-json.sh tasks/prd-[feature-name].md [--model MODEL] [--out OUT_YML]
+./scripts/ralph/cursor/convert-to-prd-yml.sh tasks/prd-[feature-name].md [--model MODEL] [--out OUT_YML]
 ```
 
 ## Key Files
 
 - `scripts/ralph/ralph.sh` - The bash loop (Cursor worker)
 - `scripts/ralph/cursor/prompt.cursor.md` - Instructions given to each Cursor iteration
-- `scripts/ralph/cursor/convert-to-prd-json.sh` - Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI
+- `scripts/ralph/cursor/convert-to-prd-yml.sh` - Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI
 - `scripts/ralph/prd.yml.example` - Example PRD format
 - `scripts/ralph/prd.yml` - User stories with `passes` status (the task list)
 - `scripts/ralph/progress.txt` - Append-only learnings for future iterations

@@ -25,7 +25,7 @@ Copy the Ralph templates into your project:
 mkdir -p scripts/ralph
 cp -R /path/to/ralph/scripts/ralph/* scripts/ralph/
 chmod +x scripts/ralph/ralph.sh
-chmod +x scripts/ralph/cursor/convert-to-prd-json.sh
+chmod +x scripts/ralph/cursor/convert-to-prd-yml.sh
 ```
 
 
@@ -40,7 +40,7 @@ Generate a PRD using Cursor in the IDE with the repo's Cursor rules (see `.curso
 Convert PRD markdown to `scripts/ralph/prd.yml` using the Cursor helper script:
 
 ```bash
-./scripts/ralph/cursor/convert-to-prd-json.sh tasks/prd-[feature-name].md
+./scripts/ralph/cursor/convert-to-prd-yml.sh tasks/prd-[feature-name].md
 ```
 
 This creates `scripts/ralph/prd.yml` with user stories structured for autonomous execution.
@@ -75,7 +75,7 @@ Note: `--cursor-timeout` only applies if a `timeout` binary is available on your
 |------|---------|
 | `scripts/ralph/ralph.sh` | The bash loop that spawns fresh Cursor invocations |
 | `scripts/ralph/cursor/prompt.cursor.md` | Instructions given to each Cursor iteration |
-| `scripts/ralph/cursor/convert-to-prd-json.sh` | Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI |
+| `scripts/ralph/cursor/convert-to-prd-yml.sh` | Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI |
 | `scripts/ralph/prd.yml` | User stories with `passes` status (the task list) |
 | `scripts/ralph/prd.yml.example` | Example PRD format for reference |
 | `scripts/ralph/progress.txt` | Append-only learnings for future iterations |
