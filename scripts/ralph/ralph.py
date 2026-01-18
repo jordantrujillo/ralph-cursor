@@ -48,7 +48,9 @@ class RalphAgent:
         """Handle Ctrl+C and other termination signals"""
         print("\n\nReceived interrupt signal. Cleaning up...", file=sys.stderr)
         self.interrupted = True
-        self._kill_all_processes()
+        # Only kill processes if the list exists (defensive check)
+        if hasattr(self, 'running_processes'):
+            self._kill_all_processes()
         sys.exit(130)  # Standard exit code for SIGINT
     
     def _kill_all_processes(self):
@@ -133,6 +135,7 @@ class RalphAgent:
     
     def _run_amp_iteration(self, prompt_file):
         """Run a single Amp iteration"""
+        proc = None
         try:
             with open(prompt_file, 'r') as f:
                 prompt_text = f.read()
@@ -155,21 +158,32 @@ class RalphAgent:
             
             return stdout
         except subprocess.TimeoutExpired:
-            proc.kill()
+            if proc is not None:
+                proc.kill()
             return ""
         except Exception as e:
             print(f"Error running amp: {e}", file=sys.stderr)
+            if proc is not None and proc.poll() is None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=1)
+                except (subprocess.TimeoutExpired, Exception):
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
             return ""
     
     def _run_cursor_iteration(self, prompt_file):
         """Run a single Cursor iteration"""
+        proc = None
         try:
             with open(prompt_file, 'r') as f:
                 prompt_text = f.read()
             
-            # Build cursor command (prompt text will be passed as argument, matching bash behavior)
+            # Build agent command (prompt text will be passed as argument, matching bash behavior)
             cmd = [
-                "cursor",
+                "agent",
                 "--model", self.model,
                 "--print",
                 "--force",
@@ -215,8 +229,11 @@ class RalphAgent:
                     exit_code = proc.returncode
             except subprocess.TimeoutExpired:
                 print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
-                proc.kill()
-                stdout, _ = proc.communicate()
+                if proc is not None:
+                    proc.kill()
+                    stdout, _ = proc.communicate()
+                else:
+                    stdout = ""
                 exit_code = 124
             
             # Also print to stderr for real-time viewing
@@ -225,6 +242,15 @@ class RalphAgent:
             return stdout
         except Exception as e:
             print(f"Error running cursor: {e}", file=sys.stderr)
+            if proc is not None and proc.poll() is None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=1)
+                except (subprocess.TimeoutExpired, Exception):
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
             return ""
     
     def _command_exists(self, command):
@@ -312,7 +338,17 @@ def main():
     """Main entry point"""
     # Parse environment variables
     worker = os.environ.get("RALPH_WORKER", "cursor")
-    cursor_timeout = int(os.environ.get("RALPH_CURSOR_TIMEOUT", "1800"))
+    
+    # Parse cursor_timeout with error handling
+    try:
+        cursor_timeout = int(os.environ.get("RALPH_CURSOR_TIMEOUT", "1800"))
+        if cursor_timeout <= 0:
+            print("Warning: RALPH_CURSOR_TIMEOUT must be positive, using default 1800", file=sys.stderr)
+            cursor_timeout = 1800
+    except (ValueError, TypeError):
+        print("Warning: Invalid RALPH_CURSOR_TIMEOUT value, using default 1800", file=sys.stderr)
+        cursor_timeout = 1800
+    
     model = os.environ.get("RALPH_MODEL", "auto")
     
     # Parse command line arguments
