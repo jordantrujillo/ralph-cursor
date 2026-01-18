@@ -106,6 +106,28 @@ def handle_init(args):
             dest_path.chmod(0o755)
         created.append(file_info['dest'])
 
+    # Copy skills from skills/ to .cursor/skills/
+    skills_src_dir = PACKAGE_ROOT / 'skills'
+    if skills_src_dir.exists():
+        cursor_skills_dir = repo_root / '.cursor' / 'skills'
+        for skill_dir in skills_src_dir.iterdir():
+            if skill_dir.is_dir():
+                skill_file = skill_dir / 'SKILL.md'
+                if skill_file.exists():
+                    dest_skill_dir = cursor_skills_dir / skill_dir.name
+                    dest_skill_file = dest_skill_dir / 'SKILL.md'
+                    
+                    # Create destination directory
+                    if not dest_skill_dir.exists():
+                        dest_skill_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # Check if file exists and handle force flag
+                    if dest_skill_file.exists() and not force:
+                        skipped.append(f'.cursor/skills/{skill_dir.name}/SKILL.md')
+                    else:
+                        shutil.copy2(skill_file, dest_skill_file)
+                        created.append(f'.cursor/skills/{skill_dir.name}/SKILL.md')
+
     # Optional: .cursor/rules/ralph-prd.mdc
     if cursor_rules:
         cursor_rules_dir = repo_root / '.cursor' / 'rules'

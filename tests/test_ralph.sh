@@ -95,18 +95,18 @@ EOF
 
   # Create test prd.yml
   cat > "$RALPH_WORK_DIR/prd.yml" << 'EOF'
-project: "TestProject"
-branchName: "ralph/test"
-description: "Test feature"
+project: TestProject
+branchName: ralph/test
+description: Test feature
 userStories:
-  - id: "US-001"
-    title: "Test story"
-    description: "Test description"
+  - id: US-001
+    title: Test story
+    description: Test description
     acceptanceCriteria:
-      - "Test criterion"
+      - Test criterion
     priority: 1
     passes: false
-    notes: ""
+    notes: 
 EOF
 
   # Create test progress.txt
