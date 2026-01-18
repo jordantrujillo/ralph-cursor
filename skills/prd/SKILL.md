@@ -79,6 +79,9 @@ Each story should be small enough to implement in one focused session.
 **Description:** As a [user], I want [feature] so that [benefit].
 
 **Acceptance Criteria:**
+- [ ] Write failing test(s) first (TDD Red phase)
+- [ ] Implement minimal code to pass tests (TDD Green phase)
+- [ ] Refactor code while keeping tests passing (TDD Refactor phase)
 - [ ] Specific verifiable criterion
 - [ ] Another criterion
 - [ ] Typecheck/lint passes
@@ -86,11 +89,26 @@ Each story should be small enough to implement in one focused session.
 ```
 
 **Important:** 
+- **Test Driven Development (TDD) is required:** All implementation stories must follow the Red-Green-Refactor cycle:
+  1. **Red:** Write failing test(s) first that define the desired behavior
+  2. **Green:** Write the minimum code needed to make tests pass
+  3. **Refactor:** Improve code quality while keeping all tests passing
 - Acceptance criteria must be verifiable, not vague. "Works correctly" is bad. "Button shows confirmation dialog before deleting" is good.
 - **For any story with UI changes:** Always include "Verify in browser using dev-browser skill" as acceptance criteria. This ensures visual verification of frontend work.
+- Tests should be written BEFORE implementation code, not after. This ensures tests actually test the code and prevents over-engineering.
 
 **Required Quality Assurance Stories:**
 Every PRD must include these three reviewer stories at the end of the User Stories section. These specialists ensure code quality, security, and test coverage:
+
+### US-XXX: Code Review - Edge Case Analysis
+**Description:** As a code reviewer specialist, I want to review all changes in the branch for potential edge case bugs so that critical issues are fixed and non-critical ones are documented.
+
+**Acceptance Criteria:**
+- [ ] Review all code changes in the branch for edge cases
+- [ ] Fix all critical edge case bugs found
+- [ ] Document non-critical edge cases in markdown format
+- [ ] Follow best practices for code review and edge case analysis
+- [ ] Typecheck/lint passes
 
 ### US-XXX: Security Review - Production Hardening
 **Description:** As a code security specialist, I want to review all code created/modified in the branch for security vulnerabilities so that the code is hardened for production use. I want to fix critical issues found, write a report on critical issues that were found/fixed. I don't want to fix the medium and minor issues, but we do wnat to document them.
@@ -105,14 +123,17 @@ Every PRD must include these three reviewer stories at the end of the User Stori
 - [ ] Security report is written/saved to `tasks/security-report-[feature-name].md`
 
 ### US-XXX: Test Review - Quality Assurance
-**Description:** As a test-driven development specialist, I want to review all tests in the branch to ensure they're comprehensive, not "cheated", and cover normal use cases and all known edge cases. And fix any issues found.
+**Description:** As a test-driven development specialist, I want to review all tests in the branch to ensure they follow TDD best practices, are comprehensive, not "cheated", and cover normal use cases and all known edge cases. And fix any issues found.
 
 **Acceptance Criteria:**
+- [ ] Verify TDD workflow was followed: tests were written BEFORE implementation code (Red-Green-Refactor cycle)
 - [ ] Review all tests created/modified in the branch
-- [ ] Verify tests are not "cheated" (no false positives, proper assertions), like skipping tests or deleting tests that are relevent to the changes, or writing tests that are not relevent to the changes.
+- [ ] Verify tests are not "cheated" (no false positives, proper assertions), like skipping tests or deleting tests that are relevant to the changes, or writing tests that are not relevant to the changes
+- [ ] Ensure tests were written first and failed initially (Red phase), then implementation made them pass (Green phase)
+- [ ] Verify no implementation code exists without corresponding tests
 - [ ] Ensure tests cover normal use cases
 - [ ] Ensure tests cover all known edge cases
-- [ ] Verify test quality follows TDD best practices
+- [ ] Verify test quality follows TDD best practices (tests define behavior, not just verify implementation)
 - [ ] Confirm tests are maintainable and well-structured
 - [ ] Typecheck/lint passes
 ```
@@ -149,6 +170,32 @@ Remaining questions or areas needing clarification.
 
 ---
 
+## Test Driven Development (TDD) Requirements
+
+**All implementation stories MUST follow TDD best practices:**
+
+1. **Red Phase:** Write failing test(s) first
+   - Tests define the desired behavior before any implementation
+   - Tests should fail initially (this proves they're testing something)
+   - Focus on what the code should do, not how it does it
+
+2. **Green Phase:** Write minimal implementation
+   - Only write enough code to make the tests pass
+   - Avoid over-engineering or adding features not covered by tests
+   - Keep it simple and focused
+
+3. **Refactor Phase:** Improve code quality
+   - Clean up, remove duplication, improve design
+   - All tests must still pass after refactoring
+   - Improve readability and maintainability
+
+**Why TDD?**
+- Tests written first ensure they actually test the code (not just verify implementation)
+- Prevents over-engineering by focusing on what's needed
+- Better design emerges from writing testable code
+- Tests serve as documentation of expected behavior
+- Catches bugs earlier in the development cycle
+
 ## Writing for Junior Developers
 
 The PRD reader may be a junior developer or AI agent. Therefore:
@@ -158,6 +205,7 @@ The PRD reader may be a junior developer or AI agent. Therefore:
 - Provide enough detail to understand purpose and core logic
 - Number requirements for easy reference
 - Use concrete examples where helpful
+- **Emphasize TDD workflow:** Tests first, then implementation, then refactor
 
 ---
 
@@ -191,7 +239,9 @@ Add priority levels to tasks so users can focus on what matters most. Tasks can 
 **Description:** As a developer, I need to store task priority so it persists across sessions.
 
 **Acceptance Criteria:**
-- [ ] Add priority column to tasks table: 'high' | 'medium' | 'low' (default 'medium')
+- [ ] Write failing test(s) first (TDD Red phase) - test that priority field exists and defaults to 'medium'
+- [ ] Implement minimal code to pass tests (TDD Green phase) - add priority column to tasks table: 'high' | 'medium' | 'low' (default 'medium')
+- [ ] Refactor code while keeping tests passing (TDD Refactor phase)
 - [ ] Generate and run migration successfully
 - [ ] Typecheck passes
 
@@ -199,6 +249,9 @@ Add priority levels to tasks so users can focus on what matters most. Tasks can 
 **Description:** As a user, I want to see task priority at a glance so I know what needs attention first.
 
 **Acceptance Criteria:**
+- [ ] Write failing test(s) first (TDD Red phase) - test that task cards render priority badges with correct colors
+- [ ] Implement minimal code to pass tests (TDD Green phase) - add priority badge component to task cards
+- [ ] Refactor code while keeping tests passing (TDD Refactor phase)
 - [ ] Each task card shows colored priority badge (red=high, yellow=medium, gray=low)
 - [ ] Priority visible without hovering or clicking
 - [ ] Typecheck passes
@@ -208,6 +261,9 @@ Add priority levels to tasks so users can focus on what matters most. Tasks can 
 **Description:** As a user, I want to change a task's priority when editing it.
 
 **Acceptance Criteria:**
+- [ ] Write failing test(s) first (TDD Red phase) - test priority selector behavior and save functionality
+- [ ] Implement minimal code to pass tests (TDD Green phase) - add priority dropdown to edit modal
+- [ ] Refactor code while keeping tests passing (TDD Refactor phase)
 - [ ] Priority dropdown in task edit modal
 - [ ] Shows current priority as selected
 - [ ] Saves immediately on selection change
@@ -218,6 +274,9 @@ Add priority levels to tasks so users can focus on what matters most. Tasks can 
 **Description:** As a user, I want to filter the task list to see only high-priority items when I'm focused.
 
 **Acceptance Criteria:**
+- [ ] Write failing test(s) first (TDD Red phase) - test filtering logic and URL param persistence
+- [ ] Implement minimal code to pass tests (TDD Green phase) - add filter dropdown and filtering logic
+- [ ] Refactor code while keeping tests passing (TDD Refactor phase)
 - [ ] Filter dropdown with options: All | High | Medium | Low
 - [ ] Filter persists in URL params
 - [ ] Empty state message when no tasks match filter
@@ -265,7 +324,9 @@ Before saving the PRD:
 - [ ] Asked clarifying questions with lettered options
 - [ ] Incorporated user's answers
 - [ ] User stories are small and specific
+- [ ] **All implementation stories include TDD acceptance criteria** (Red-Green-Refactor phases)
 - [ ] Functional requirements are numbered and unambiguous
 - [ ] Non-goals section defines clear boundaries
 - [ ] **Included the three required Quality Assurance reviewer stories** (Code Review, Security Review, Test Review)
+- [ ] Test Review story emphasizes TDD workflow verification
 - [ ] Saved to `tasks/prd-[feature-name].md`

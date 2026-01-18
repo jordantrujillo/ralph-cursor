@@ -68,29 +68,65 @@ fi
 chmod +x "$INSTALL_PATH"
 echo -e "${GREEN}Made executable${NC}"
 
-# Check for yq (recommended for YAML processing)
+# Check and install dependencies
 echo ""
 echo "Checking dependencies..."
+
+# List missing dependencies
+MISSING_DEPS=()
+DEP_INSTALL_COMMANDS=()
+
 if ! command -v yq >/dev/null 2>&1; then
-    echo ""
-    echo -e "${YELLOW}Note: yq is not installed (recommended for YAML processing)${NC}"
-    echo "  Install with:"
+    MISSING_DEPS+=("yq")
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        echo "    brew install yq"
+        DEP_INSTALL_COMMANDS+=("brew install yq")
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        echo "    # On Debian/Ubuntu:"
-        echo "    sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64"
-        echo "    sudo chmod +x /usr/local/bin/yq"
-        echo ""
-        echo "    # Or install PyYAML as an alternative:"
-        echo "    pip install pyyaml"
+        DEP_INSTALL_COMMANDS+=("sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && sudo chmod +x /usr/local/bin/yq")
     else
-        echo "    # Visit https://github.com/mikefarah/yq/releases"
-        echo "    # Or install PyYAML as an alternative:"
-        echo "    pip install pyyaml"
+        DEP_INSTALL_COMMANDS+=("# Visit https://github.com/mikefarah/yq/releases or use: pip install pyyaml")
     fi
 else
     echo -e "${GREEN}✓ yq is installed${NC}"
+fi
+
+# Ask to install missing dependencies
+if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+    echo ""
+    echo -e "${YELLOW}Missing dependencies:${NC}"
+    for dep in "${MISSING_DEPS[@]}"; do
+        echo "  - $dep"
+    done
+    echo ""
+    read -p "Would you like to install these dependencies? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "Installing dependencies..."
+        for i in "${!MISSING_DEPS[@]}"; do
+            dep="${MISSING_DEPS[$i]}"
+            cmd="${DEP_INSTALL_COMMANDS[$i]}"
+            echo -e "${YELLOW}Installing $dep...${NC}"
+            if [[ "$cmd" == "#"* ]]; then
+                echo "  $cmd"
+            else
+                eval "$cmd" || {
+                    echo -e "${RED}Failed to install $dep${NC}" >&2
+                    echo "  You can install it manually with: $cmd" >&2
+                }
+            fi
+        done
+        echo ""
+        echo -e "${GREEN}Dependency installation complete${NC}"
+    else
+        echo ""
+        echo -e "${YELLOW}Skipping dependency installation${NC}"
+        echo "You can install them manually:"
+        for i in "${!MISSING_DEPS[@]}"; do
+            dep="${MISSING_DEPS[$i]}"
+            cmd="${DEP_INSTALL_COMMANDS[$i]}"
+            echo "  $dep: $cmd"
+        done
+    fi
 fi
 
 # Check if install directory is in PATH
