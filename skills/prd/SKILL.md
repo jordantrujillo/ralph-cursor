@@ -13,10 +13,14 @@ Create detailed Product Requirements Documents that are clear, actionable, and s
 
 1. Receive a feature description from the user
 2. Ask 3-5 essential clarifying questions (with lettered options)
-3. Generate a structured PRD based on answers
-4. Save to `tasks/prd-[feature-name].md`
+3. **Assess scope** - determine if phases are needed (6+ stories, 5+ files, spans multiple areas)
+4. Generate a structured PRD based on answers
+5. **Always create phases for large features** - break down into logical, reviewable phases
+6. Save to `tasks/prd-[feature-name].md`
 
 **Important:** Do NOT start implementing. Just create the PRD.
+
+**Phase Strategy:** If the feature will touch many files, have many stories, or span multiple codebase areas, automatically organize it into phases. This enables incremental PRs and better code review.
 
 ---
 
@@ -28,6 +32,12 @@ Ask only critical questions where the initial prompt is ambiguous. Focus on:
 - **Core Functionality:** What are the key actions?
 - **Scope/Boundaries:** What should it NOT do?
 - **Success Criteria:** How do we know it's done?
+
+**While asking questions, also assess scope:**
+- How many files will this likely touch? (database, API, UI, etc.)
+- How many distinct areas of the codebase?
+- Does this span backend and frontend?
+- Based on this, determine if phases will be needed (see Phase Guidelines below)
 
 ### Format Questions Like This:
 
@@ -65,13 +75,58 @@ Brief description of the feature and the problem it solves.
 ### 2. Goals
 Specific, measurable objectives (bullet list).
 
-### 3. User Stories
+### 3. Phases (Required for Large Features)
+**Always break down large features into phases.** Each phase will be implemented on its own branch, allowing for incremental review and smaller PRs.
+
+**When to create phases:**
+- **Always create phases if:** The feature will touch many files (5+ files), has many user stories (6+ stories), or spans multiple areas of the codebase
+- **Create phases if:** The feature involves database changes + API changes + UI changes (these are natural phase boundaries)
+- **Create phases if:** The feature has clear logical groupings (e.g., "backend setup" → "API endpoints" → "UI components")
+- **You can skip phases only if:** The feature is very small (3-4 stories, 2-3 files) and tightly focused
+
+**Format:**
+```markdown
+## Phases
+
+### Phase 1: [Phase Name]
+**Description:** Brief description of what this phase accomplishes.
+**Branch:** `ralph/[feature-name]-phase-1`
+
+**User Stories:**
+- US-001: [Story title]
+- US-002: [Story title]
+...
+
+### Phase 2: [Phase Name]
+**Description:** Brief description of what this phase accomplishes.
+**Branch:** `ralph/[feature-name]-phase-2` (built on top of phase-1 branch)
+
+**User Stories:**
+- US-005: [Story title]
+- US-006: [Story title]
+...
+```
+
+**Phase Guidelines:**
+- Each phase should be a logical, reviewable unit of work (typically 3-6 stories)
+- Phases should build on each other (later phases depend on earlier ones)
+- Each phase gets its own branch: `ralph/[feature-name]-phase-N`
+- Phase branches are built on top of the previous phase's branch (or main for phase 1)
+- Aim for phases that can be reviewed in a single PR without being overwhelming
+- **Natural phase boundaries:**
+  - Database/schema changes → API/backend logic → UI components
+  - Core functionality → Advanced features → Polish/optimization
+  - Single area of codebase → Integration with other areas
+
+### 4. User Stories
 Each story needs:
 - **Title:** Short descriptive name
 - **Description:** "As a [user], I want [feature] so that [benefit]"
 - **Acceptance Criteria:** Verifiable checklist of what "done" means
 
 Each story should be small enough to implement in one focused session.
+
+**If using phases:** Group stories under their respective phase sections. If not using phases, list all stories in a single "User Stories" section.
 
 **Format:**
 ```markdown
@@ -120,7 +175,7 @@ Every PRD must include these three reviewer stories at the end of the User Stori
 - [ ] Verify secure handling of sensitive data
 - [ ] Follow security best practices and OWASP guidelines
 - [ ] Typecheck/lint passes
-- [ ] Security report is written/saved to `tasks/security-report-[feature-name].md`
+- [ ] Security report is written/saved to `tasks/feature-name/security-report.md`
 
 ### US-XXX: Test Review - Quality Assurance
 **Description:** As a test-driven development specialist, I want to review all tests in the branch to ensure they follow TDD best practices, are comprehensive, not "cheated", and cover normal use cases and all known edge cases. And fix any issues found.
@@ -140,32 +195,32 @@ Every PRD must include these three reviewer stories at the end of the User Stori
 
 **Note:** Replace `US-XXX` with the appropriate sequential story number based on your total story count.
 
-### 4. Functional Requirements
+### 5. Functional Requirements
 Numbered list of specific functionalities:
 - "FR-1: The system must allow users to..."
 - "FR-2: When a user clicks X, the system must..."
 
 Be explicit and unambiguous.
 
-### 5. Non-Goals (Out of Scope)
+### 6. Non-Goals (Out of Scope)
 What this feature will NOT include. Critical for managing scope.
 
-### 6. Design Considerations (Optional)
+### 7. Design Considerations (Optional)
 - UI/UX requirements
 - Link to mockups if available
 - Relevant existing components to reuse
 
-### 7. Technical Considerations (Optional)
+### 8. Technical Considerations (Optional)
 - Known constraints or dependencies
 - Integration points with existing systems
 - Performance requirements
 
-### 8. Success Metrics
+### 9. Success Metrics
 How will success be measured?
 - "Reduce time to complete X by 50%"
 - "Increase conversion rate by 10%"
 
-### 9. Open Questions
+### 10. Open Questions
 Remaining questions or areas needing clarification.
 
 ---
@@ -323,6 +378,9 @@ Before saving the PRD:
 
 - [ ] Asked clarifying questions with lettered options
 - [ ] Incorporated user's answers
+- [ ] **Created phases if feature is large** (6+ stories, 5+ files, or spans multiple codebase areas)
+- [ ] If using phases, each phase has clear description and branch name
+- [ ] If not using phases, feature is small enough (3-4 stories, 2-3 files) to skip phases
 - [ ] User stories are small and specific
 - [ ] **All implementation stories include TDD acceptance criteria** (Red-Green-Refactor phases)
 - [ ] Functional requirements are numbered and unambiguous

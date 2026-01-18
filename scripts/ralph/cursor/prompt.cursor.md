@@ -4,16 +4,25 @@ You are an autonomous coding agent working on a software project using Cursor.
 
 ## Your Task
 
-1. Read the PRD at `prd.yml` (in the same directory as this file)
+1. Read the PRD at `scripts/ralph/prd.yml` (in the same directory as this file)
 2. Read the progress log at `progress.txt` (check Codebase Patterns section first)
-3. Check you're on the correct branch from PRD `branchName`. If not, check it out or create from main.
-4. Pick the **highest priority** user story where `passes: false`
-5. Implement that single user story
-6. Run quality checks (e.g., typecheck, lint, test - use whatever your project requires)
-7. Update AGENTS.md files if you discover reusable patterns (see below)
-8. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
-9. Update the PRD to set `passes: true` for the completed story
-10. Append your progress to `progress.txt`
+3. **Determine current phase:**
+   - If PRD has `phases`: Find the first phase (by phaseNumber) that contains at least one story with `passes: false`
+   - If no phases exist (legacy format): Treat the entire PRD as a single phase with branchName from top-level `branchName`
+   - **Note:** Phases are processed sequentially - you only work on one phase at a time
+4. **Check out/create phase branch:**
+   - Get the `branchName` for the current phase
+   - If branch doesn't exist:
+     - If this is phase 1: Create branch from `main`
+     - If this is phase N (N > 1): Create branch from the previous phase's branch
+   - Check out the phase branch
+5. Pick the **highest priority** user story from the current phase where `passes: false`
+6. Implement that single user story
+7. Run quality checks (e.g., typecheck, lint, test - use whatever your project requires)
+8. Update AGENTS.md files if you discover reusable patterns (see below)
+9. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
+10. Update the PRD to set `passes: true` for the completed story
+11. Append your progress to `progress.txt`
 
 ## Progress Report Format
 
@@ -96,18 +105,37 @@ A frontend story is NOT complete until browser verification passes (via MCP tool
 
 ## Stop Condition
 
-After completing a user story, check if ALL stories have `passes: true`.
+After completing a user story, check completion status:
 
-If ALL stories are complete and passing, reply with:
-<promise>COMPLETE</promise>
+1. **Check current phase completion:**
+   - If all stories in the current phase have `passes: true`:
+     - If there are more phases with incomplete stories: Continue to next phase (next iteration will handle it)
+     - If this was the last phase: Check if ALL stories across ALL phases have `passes: true`
+   
+2. **If ALL stories across ALL phases are complete:**
+   - Reply with: `<promise>COMPLETE</promise>`
+   
+3. **If there are still incomplete stories:**
+   - End your response normally (another iteration will pick up the next story)
 
-If there are still stories with `passes: false`, end your response normally (another iteration will pick up the next story).
+**Phase Transition Note:** When a phase is complete, the next iteration will automatically move to the next phase's branch. You don't need to handle phase transitions within a single iteration - just complete stories in the current phase.
 
 ## Important
 
 - Work on ONE story per iteration
+- **Work only on stories from the current phase**
+- **Ensure you're on the correct phase branch before starting work**
+- **Phase branches are built on top of previous phase branches** (or main for phase 1)
 - Commit frequently
 - Keep CI green
 - Read the Codebase Patterns section in progress.txt before starting
 - Use Cursor's file editing capabilities to make changes directly
 - Rely on `.cursor/rules/*` files for repository-specific conventions when available
+
+## Phase Branch Management
+
+When working with phases:
+- **Phase 1 branch:** Created from `main`
+- **Phase N branch (N > 1):** Created from the previous phase's branch
+- This allows each phase to be reviewed as a separate PR
+- Each phase branch contains only the work from that phase (plus previous phases as base)

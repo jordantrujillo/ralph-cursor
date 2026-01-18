@@ -48,3 +48,14 @@ npm run dev
 - Stories should be small enough to complete in one context window
 - Always update AGENTS.md with discovered patterns for future iterations
 - Cursor-specific prompts are in `scripts/ralph/cursor/` subfolder
+
+## Phases and Branching
+
+Ralph supports breaking down large PRDs into multiple phases, each with its own branch:
+
+- **Phase branches:** Each phase gets its own branch (e.g., `ralph/feature-name-phase-1`, `ralph/feature-name-phase-2`)
+- **Branch hierarchy:** Phase 1 branches from `main`, Phase N branches from Phase N-1's branch
+- **Incremental PRs:** Each phase can be reviewed as a separate PR, keeping PRs manageable
+- **Automatic progression:** Ralph automatically moves to the next phase when the current phase is complete
+- **PRD structure:** PRDs can define phases in the markdown, which get converted to `phases` in `prd.yml`
+- **Legacy support:** PRDs without phases are treated as a single phase for backward compatibility

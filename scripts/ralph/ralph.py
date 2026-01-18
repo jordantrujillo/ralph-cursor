@@ -64,7 +64,11 @@ class RalphAgent:
         self.running_processes.clear()
     
     def _get_branch_name(self):
-        """Get branch name from PRD file using yq or Python fallback"""
+        """Get top-level branch name from PRD file using yq or Python fallback.
+        
+        Note: This returns the feature-level branchName, not phase-specific branches.
+        Phase-specific branches are handled by the Cursor prompt.
+        """
         if not self.prd_file.exists():
             return None
         
