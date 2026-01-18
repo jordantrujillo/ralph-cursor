@@ -80,6 +80,11 @@ phases:
 
 For normal text values, omit quotes to save tokens.
 
+**YAML Validation Notes:**
+- **Strings with colons:** Must be quoted. Example: `"Handle edge cases: missing directories"` (not `Handle edge cases: missing directories`)
+- **Strings containing quotes:** Wrap in single quotes to avoid parsing errors. Example: `'"ralph uninstall" command finds installation'` (not `"ralph uninstall" command finds installation`)
+- **Always validate YAML:** After creating prd.yml, run `yq eval '.' scripts/ralph/prd.yml` to verify it's valid YAML before saving
+
 ---
 
 ## Story Size: The Number One Rule
@@ -364,3 +369,6 @@ Before writing prd.yml, verify:
 - [ ] Acceptance criteria are verifiable (not vague)
 - [ ] No story depends on a later story
 - [ ] Story IDs are sequential across all phases (US-001, US-002, etc.)
+- [ ] **YAML is valid:** Run `yq eval '.' scripts/ralph/prd.yml` to verify (or equivalent validation)
+- [ ] **Strings with colons are quoted:** Any acceptance criteria containing colons must be in quotes
+- [ ] **Strings with quotes are properly escaped:** Strings containing double quotes must be wrapped in single quotes
