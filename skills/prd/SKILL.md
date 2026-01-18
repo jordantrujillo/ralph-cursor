@@ -89,6 +89,35 @@ Each story should be small enough to implement in one focused session.
 - Acceptance criteria must be verifiable, not vague. "Works correctly" is bad. "Button shows confirmation dialog before deleting" is good.
 - **For any story with UI changes:** Always include "Verify in browser using dev-browser skill" as acceptance criteria. This ensures visual verification of frontend work.
 
+**Required Quality Assurance Stories:**
+Every PRD must include these three reviewer stories at the end of the User Stories section. These specialists ensure code quality, security, and test coverage:
+
+### US-XXX: Security Review - Production Hardening
+**Description:** As a security specialist, I want to review all changes for security vulnerabilities so that the code is hardened for production use.
+
+**Acceptance Criteria:**
+- [ ] Review all code created/modified in the branch for security vulnerabilities
+- [ ] Identify and fix security issues (SQL injection, XSS, CSRF, auth flaws, etc.)
+- [ ] Ensure proper input validation and sanitization
+- [ ] Verify secure handling of sensitive data
+- [ ] Follow security best practices and OWASP guidelines
+- [ ] Typecheck/lint passes
+
+### US-XXX: Test Review - Quality Assurance
+**Description:** As a test-driven development specialist, I want to review all tests in the branch to ensure they're comprehensive, not "cheated", and cover normal use cases and all known edge cases.
+
+**Acceptance Criteria:**
+- [ ] Review all tests created/modified in the branch
+- [ ] Verify tests are not "cheated" (no false positives, proper assertions), like skipping tests or deleting tests that are relevent to the changes, or writing tests that are not relevent to the changes.
+- [ ] Ensure tests cover normal use cases
+- [ ] Ensure tests cover all known edge cases
+- [ ] Verify test quality follows TDD best practices
+- [ ] Confirm tests are maintainable and well-structured
+- [ ] Typecheck/lint passes
+```
+
+**Note:** Replace `US-XXX` with the appropriate sequential story number based on your total story count.
+
 ### 4. Functional Requirements
 Numbered list of specific functionalities:
 - "FR-1: The system must allow users to..."
@@ -237,4 +266,5 @@ Before saving the PRD:
 - [ ] User stories are small and specific
 - [ ] Functional requirements are numbered and unambiguous
 - [ ] Non-goals section defines clear boundaries
+- [ ] **Included the three required Quality Assurance reviewer stories** (Code Review, Security Review, Test Review)
 - [ ] Saved to `tasks/prd-[feature-name].md`
