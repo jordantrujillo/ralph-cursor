@@ -93,7 +93,7 @@ Each story should be small enough to implement in one focused session.
 Every PRD must include these three reviewer stories at the end of the User Stories section. These specialists ensure code quality, security, and test coverage:
 
 ### US-XXX: Security Review - Production Hardening
-**Description:** As a security specialist, I want to review all changes for security vulnerabilities so that the code is hardened for production use.
+**Description:** As a code security specialist, I want to review all code created/modified in the branch for security vulnerabilities so that the code is hardened for production use. Try to fix critical issues found, write a report on critical issues that were fixed, and on medium and minor issues found. We don't want to fix the medium and minor issues, we just want to write a report on them.
 
 **Acceptance Criteria:**
 - [ ] Review all code created/modified in the branch for security vulnerabilities
@@ -102,9 +102,10 @@ Every PRD must include these three reviewer stories at the end of the User Stori
 - [ ] Verify secure handling of sensitive data
 - [ ] Follow security best practices and OWASP guidelines
 - [ ] Typecheck/lint passes
+- [ ] Security report is written/saved to `tasks/security-report-[feature-name].md`
 
 ### US-XXX: Test Review - Quality Assurance
-**Description:** As a test-driven development specialist, I want to review all tests in the branch to ensure they're comprehensive, not "cheated", and cover normal use cases and all known edge cases.
+**Description:** As a test-driven development specialist, I want to review all tests in the branch to ensure they're comprehensive, not "cheated", and cover normal use cases and all known edge cases. And fix any issues found.
 
 **Acceptance Criteria:**
 - [ ] Review all tests created/modified in the branch
