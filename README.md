@@ -109,10 +109,6 @@ The runner loop will invoke Cursor CLI repeatedly. The worker prompt instructs i
 
 ## Flowchart
 
-[![Ralph Flowchart](ralph-flowchart.png)](https://snarktank.github.io/ralph/)
-
-**[View Interactive Flowchart](https://snarktank.github.io/ralph/)** - Click through to see each step with animations.
-
 The `flowchart/` directory contains the source code. To run locally:
 
 ```bash
@@ -145,14 +141,40 @@ Too big (split these):
 - "Add authentication"
 - "Refactor the API"
 
-### AGENTS.md Updates Are Critical
+### AGENTS.md Files (Cursor Workspace Rules)
 
-After each iteration, Ralph updates the relevant `AGENTS.md` files with learnings. This helps future iterations (and future human developers) benefit from discovered patterns, gotchas, and conventions.
+In Cursor, `AGENTS.md` files are workspace-level rule files that provide persistent instructions to the AI agent. They're not automatically updated by Ralph, but agents are instructed to update them when they discover reusable patterns.
 
-Examples of what to add to AGENTS.md:
-- Patterns discovered ("this codebase uses X for Y")
-- Gotchas ("do not forget to update Z when changing W")
-- Useful context ("the settings panel is in component X")
+**Format:** Keep AGENTS.md files as small as possible with short, concise rules:
+
+**Example:**
+
+```markdown
+## Testing
+
+### Rules
+- Use X for Y
+- Always do Z when W
+- Never forget to update A when changing B
+```
+
+**How AGENTS.md works:**
+- `AGENTS.md` files are read by Cursor as workspace rules (similar to `.cursor/rules/` files)
+- Agents check for `AGENTS.md` files in directories where they make changes
+- If valuable patterns are discovered, agents add them to nearby `AGENTS.md` files
+- Main learnings go into `scripts/ralph/progress.txt` (especially the "Codebase Patterns" section)
+
+**What belongs in AGENTS.md:**
+- Directory-specific API patterns or conventions (short rules only)
+- Gotchas or non-obvious requirements for that module
+- Dependencies between files in that area
+- Configuration or environment requirements
+- If Agent is given a task that is in conflict with a rule, it should remove that rule from the AGENTS.md file.
+
+**What belongs in progress.txt:**
+- Story-specific implementation details
+- Learnings from each iteration
+- General codebase patterns (in the "Codebase Patterns" section at the top)
 
 ### Feedback Loops
 
