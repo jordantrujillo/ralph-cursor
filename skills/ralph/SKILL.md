@@ -11,7 +11,7 @@ Converts existing PRDs to the prd.yml format that Ralph uses for autonomous exec
 
 ## The Job
 
-Take a PRD (markdown file or text) and convert it to `prd.yml` in your ralph directory.
+Take a PRD (markdown file or text) and convert it to `scripts/ralph/prd.yml`.
 
 ---
 
