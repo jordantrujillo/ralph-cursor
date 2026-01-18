@@ -56,16 +56,13 @@ const notes = [
     appearsWithStep: 2,
     position: { x: 340, y: 100 },
     color: { bg: '#f5f0ff', border: '#8b5cf6' },
-    content: `{
-  "id": "US-001",
-  "title": "Add priority field to database",
-  "acceptanceCriteria": [
-    "Add priority column to tasks table",
-    "Generate and run migration",
-    "Typecheck passes"
-  ],
-  "passes": false
-}`,
+    content: `id: "US-001"
+title: "Add priority field to database"
+acceptanceCriteria:
+  - "Add priority column to tasks table"
+  - "Generate and run migration"
+  - "Typecheck passes"
+passes: false`,
   },
   {
     id: 'note-2',
