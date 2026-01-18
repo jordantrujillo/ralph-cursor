@@ -93,7 +93,7 @@ Each story should be small enough to implement in one focused session.
 Every PRD must include these three reviewer stories at the end of the User Stories section. These specialists ensure code quality, security, and test coverage:
 
 ### US-XXX: Security Review - Production Hardening
-**Description:** As a code security specialist, I want to review all code created/modified in the branch for security vulnerabilities so that the code is hardened for production use. Try to fix critical issues found, write a report on critical issues that were fixed, and on medium and minor issues found. We don't want to fix the medium and minor issues, we just want to write a report on them.
+**Description:** As a code security specialist, I want to review all code created/modified in the branch for security vulnerabilities so that the code is hardened for production use. Try to fix critical issues found, write a report on critical issues that were found/fixed. We don't want to fix the medium and minor issues, but we do wnat to document them.
 
 **Acceptance Criteria:**
 - [ ] Review all code created/modified in the branch for security vulnerabilities
