@@ -1,34 +1,28 @@
-# Convert PRD Markdown to prd.json
+# Convert PRD Markdown to prd.yml
 
-You are converting a Product Requirements Document (PRD) from markdown format to `prd.json` format for the Ralph autonomous agent system.
+You are converting a Product Requirements Document (PRD) from markdown format to `prd.yml` format for the Ralph autonomous agent system.
 
 ## The Job
 
-Take a PRD (markdown file, typically at `tasks/prd-[feature-name].md`) and convert it to `prd.json` in the same directory as this prompt file (typically `scripts/ralph/prd.json`).
+Take a PRD (markdown file, typically at `tasks/prd-[feature-name].md`) and convert it to `prd.yml` in the same directory as this prompt file (typically `scripts/ralph/prd.yml`).
 
 ## Output Format
 
-```json
-{
-  "project": "[Project Name]",
-  "branchName": "ralph/[feature-name-kebab-case]",
-  "description": "[Feature description from PRD title/intro]",
-  "userStories": [
-    {
-      "id": "US-001",
-      "title": "[Story title]",
-      "description": "As a [user], I want [feature] so that [benefit]",
-      "acceptanceCriteria": [
-        "Criterion 1",
-        "Criterion 2",
-        "Typecheck passes"
-      ],
-      "priority": 1,
-      "passes": false,
-      "notes": ""
-    }
-  ]
-}
+```yaml
+project: "[Project Name]"
+branchName: "ralph/[feature-name-kebab-case]"
+description: "[Feature description from PRD title/intro]"
+userStories:
+  - id: "US-001"
+    title: "[Story title]"
+    description: "As a [user], I want [feature] so that [benefit]"
+    acceptanceCriteria:
+      - "Criterion 1"
+      - "Criterion 2"
+      - "Typecheck passes"
+    priority: 1
+    passes: false
+    notes: ""
 ```
 
 ## Story Size: The Number One Rule
@@ -102,7 +96,7 @@ Frontend stories are NOT complete until visually verified. Ralph will use browse
 
 ## Conversion Rules
 
-1. **Each user story becomes one JSON entry**
+1. **Each user story becomes one YAML entry**
 2. **IDs**: Sequential (US-001, US-002, etc.)
 3. **Priority**: Based on dependency order, then document order
 4. **All stories**: `passes: false` and empty `notes`
@@ -128,11 +122,11 @@ Each is one focused change that can be completed and verified independently.
 
 ## Reference Example
 
-See `prd.json.example` in the same directory for a complete example of the expected format.
+See `prd.yml.example` in the same directory for a complete example of the expected format.
 
 ## Checklist
 
-Before writing prd.json, verify:
+Before writing prd.yml, verify:
 
 - [ ] Each story is completable in one iteration (small enough)
 - [ ] Stories are ordered by dependency (schema to backend to UI)
@@ -140,4 +134,4 @@ Before writing prd.json, verify:
 - [ ] UI stories have browser verification requirement
 - [ ] Acceptance criteria are verifiable (not vague)
 - [ ] No story depends on a later story
-- [ ] JSON is valid and follows the example format
+- [ ] YAML is valid and follows the example format

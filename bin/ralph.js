@@ -65,7 +65,7 @@ function handleInit(args) {
   // Always required files (needed for both workers)
   const alwaysRequired = [
     { src: 'scripts/ralph/ralph.sh', dest: 'scripts/ralph/ralph.sh', executable: true },
-    { src: 'scripts/ralph/prd.json.example', dest: 'scripts/ralph/prd.json.example', executable: false },
+    { src: 'scripts/ralph/prd.yml.example', dest: 'scripts/ralph/prd.yml.example', executable: false },
   ];
 
   // Amp-specific files

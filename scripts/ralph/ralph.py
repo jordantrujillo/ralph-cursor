@@ -9,7 +9,6 @@ Default model is 'auto' if not specified (only applies to cursor worker)
 """
 
 import argparse
-import json
 import os
 import signal
 import subprocess
@@ -17,6 +16,12 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+
+try:
+    import yaml
+except ImportError:
+    print("Error: PyYAML is required. Install with: pip install pyyaml", file=sys.stderr)
+    sys.exit(1)
 
 
 class RalphAgent:
@@ -34,7 +39,7 @@ class RalphAgent:
         
         # Get script directory
         self.script_dir = Path(__file__).parent.resolve()
-        self.prd_file = self.script_dir / "prd.json"
+        self.prd_file = self.script_dir / "prd.yml"
         self.progress_file = self.script_dir / "progress.txt"
         self.archive_dir = self.script_dir / "archive"
         self.last_branch_file = self.script_dir / ".last-branch"
@@ -77,9 +82,9 @@ class RalphAgent:
             return None
         try:
             with open(self.prd_file, 'r') as f:
-                prd_data = json.load(f)
-                return prd_data.get('branchName')
-        except (json.JSONDecodeError, KeyError):
+                prd_data = yaml.safe_load(f)
+                return prd_data.get('branchName') if prd_data else None
+        except (yaml.YAMLError, KeyError, TypeError):
             return None
     
     def _archive_previous_run(self):

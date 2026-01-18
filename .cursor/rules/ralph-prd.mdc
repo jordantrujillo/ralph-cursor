@@ -4,7 +4,7 @@ This rule guides Cursor to generate Product Requirements Documents (PRDs) for th
 
 ## Purpose
 
-Create detailed PRDs that are clear, actionable, and suitable for conversion to `prd.json` format for autonomous execution by Ralph.
+Create detailed PRDs that are clear, actionable, and suitable for conversion to `prd.yml` format for autonomous execution by Ralph.
 
 ## The Job
 

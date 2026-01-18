@@ -2,7 +2,7 @@
 
 ![Ralph](ralph.webp)
 
-Ralph is an autonomous AI agent loop that runs an AI worker (default: [Amp](https://ampcode.com), optional: Cursor CLI) repeatedly until all PRD items are complete. Each iteration is a fresh worker invocation with clean context. Memory persists via git history, `scripts/ralph/progress.txt`, and `scripts/ralph/prd.json`.
+Ralph is an autonomous AI agent loop that runs an AI worker (default: [Amp](https://ampcode.com), optional: Cursor CLI) repeatedly until all PRD items are complete. Each iteration is a fresh worker invocation with clean context. Memory persists via git history, `scripts/ralph/progress.txt`, and `scripts/ralph/prd.yml`.
 
 Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
@@ -13,7 +13,7 @@ Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 - One worker installed:
   - [Amp CLI](https://ampcode.com) installed and authenticated, and/or
   - Cursor CLI (`cursor`) installed and authenticated
-- `jq` installed (`brew install jq` on macOS)
+- `yq` installed (`brew install yq` on macOS) or Python 3 with PyYAML (`pip install pyyaml`)
 - A git repository for your project
 
 ## Setup
@@ -67,19 +67,19 @@ If you use Cursor in the IDE, you can also generate a PRD using the repo's Curso
 
 ### 2. Convert PRD to Ralph format
 
-If you use Amp skills, use the Ralph skill to convert the markdown PRD to JSON:
+If you use Amp skills, use the Ralph skill to convert the markdown PRD to YAML:
 
 ```
-Load the ralph skill and convert tasks/prd-[feature-name].md to prd.json
+Load the ralph skill and convert tasks/prd-[feature-name].md to prd.yml
 ```
 
-Alternatively, you can convert PRD markdown to `scripts/ralph/prd.json` using the Cursor helper script:
+Alternatively, you can convert PRD markdown to `scripts/ralph/prd.yml` using the Cursor helper script:
 
 ```bash
 ./scripts/ralph/cursor/convert-to-prd-json.sh tasks/prd-[feature-name].md
 ```
 
-This creates `scripts/ralph/prd.json` with user stories structured for autonomous execution.
+This creates `scripts/ralph/prd.yml` with user stories structured for autonomous execution.
 
 ### 3. Run Ralph
 
@@ -90,7 +90,7 @@ This creates `scripts/ralph/prd.json` with user stories structured for autonomou
 Default is 10 iterations.
 
 The runner loop will invoke the selected worker repeatedly. The worker prompt instructs it to:
-- Read `scripts/ralph/prd.json` and `scripts/ralph/progress.txt`
+- Read `scripts/ralph/prd.yml` and `scripts/ralph/progress.txt`
 - Implement one story per iteration, run checks, commit, and update `passes: true`
 - Stop by outputting `<promise>COMPLETE</promise>` when all stories pass
 
@@ -112,12 +112,12 @@ Note: `--cursor-timeout` only applies if a `timeout` binary is available on your
 | `scripts/ralph/ralph.sh` | The bash loop that spawns fresh worker invocations |
 | `scripts/ralph/prompt.md` | Instructions given to each Amp iteration |
 | `scripts/ralph/cursor/prompt.cursor.md` | Instructions given to each Cursor iteration |
-| `scripts/ralph/cursor/convert-to-prd-json.sh` | Convert PRD markdown → `scripts/ralph/prd.json` via Cursor CLI |
-| `scripts/ralph/prd.json` | User stories with `passes` status (the task list) |
-| `scripts/ralph/prd.json.example` | Example PRD format for reference |
+| `scripts/ralph/cursor/convert-to-prd-json.sh` | Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI |
+| `scripts/ralph/prd.yml` | User stories with `passes` status (the task list) |
+| `scripts/ralph/prd.yml.example` | Example PRD format for reference |
 | `scripts/ralph/progress.txt` | Append-only learnings for future iterations |
 | `skills/prd/` | Skill for generating PRDs |
-| `skills/ralph/` | Skill for converting PRDs to JSON |
+| `skills/ralph/` | Skill for converting PRDs to YAML |
 | `flowchart/` | Interactive visualization of how Ralph works |
 
 ## Flowchart
@@ -141,7 +141,7 @@ npm run dev
 Each iteration spawns a **new worker invocation** (Amp or Cursor) with clean context. The only memory between iterations is:
 - Git history (commits from previous iterations)
 - `scripts/ralph/progress.txt` (learnings and context)
-- `scripts/ralph/prd.json` (which stories are done)
+- `scripts/ralph/prd.yml` (which stories are done)
 
 ### Small Tasks
 
@@ -188,7 +188,9 @@ Check current state:
 
 ```bash
 # See which stories are done
-cat scripts/ralph/prd.json | jq '.userStories[] | {id, title, passes}'
+cat scripts/ralph/prd.yml | yq '.userStories[] | {id, title, passes}'
+# Or with Python:
+python3 -c "import yaml; print('\n'.join([f\"{s['id']}: {s['title']} - passes: {s['passes']}\" for s in yaml.safe_load(open('scripts/ralph/prd.yml'))['userStories']]))"
 
 # See learnings from previous iterations
 cat scripts/ralph/progress.txt

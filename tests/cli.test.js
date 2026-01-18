@@ -43,7 +43,7 @@ test('ralph init creates scripts/ralph/ directory and files', async () => {
     const requiredFiles = [
       'scripts/ralph/ralph.sh',
       'scripts/ralph/prompt.md',
-      'scripts/ralph/prd.json.example',
+      'scripts/ralph/prd.yml.example',
       'scripts/ralph/cursor/prompt.cursor.md',
       'scripts/ralph/cursor/prompt.convert-to-prd-json.md',
       'scripts/ralph/cursor/prompt.generate-prd.md',
@@ -278,7 +278,7 @@ test('ralph init --worker amp only installs amp files', async () => {
 
     // Check common files exist
     await access(join(testDir, 'scripts/ralph/ralph.sh'), constants.F_OK);
-    await access(join(testDir, 'scripts/ralph/prd.json.example'), constants.F_OK);
+    await access(join(testDir, 'scripts/ralph/prd.yml.example'), constants.F_OK);
   } finally {
     await rm(testDir, { recursive: true, force: true });
   }
@@ -304,7 +304,7 @@ test('ralph init --worker cursor only installs cursor files', async () => {
 
     // Check common files exist
     await access(join(testDir, 'scripts/ralph/ralph.sh'), constants.F_OK);
-    await access(join(testDir, 'scripts/ralph/prd.json.example'), constants.F_OK);
+    await access(join(testDir, 'scripts/ralph/prd.yml.example'), constants.F_OK);
   } finally {
     await rm(testDir, { recursive: true, force: true });
   }
@@ -320,7 +320,7 @@ test('ralph init --worker both installs all files', async () => {
     await access(join(testDir, 'scripts/ralph/prompt.md'), constants.F_OK);
     await access(join(testDir, 'scripts/ralph/cursor/prompt.cursor.md'), constants.F_OK);
     await access(join(testDir, 'scripts/ralph/ralph.sh'), constants.F_OK);
-    await access(join(testDir, 'scripts/ralph/prd.json.example'), constants.F_OK);
+    await access(join(testDir, 'scripts/ralph/prd.yml.example'), constants.F_OK);
   } finally {
     await rm(testDir, { recursive: true, force: true });
   }

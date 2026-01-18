@@ -37,14 +37,21 @@ if [[ "$WORKER" != "amp" && "$WORKER" != "cursor" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PRD_FILE="$SCRIPT_DIR/prd.json"
+PRD_FILE="$SCRIPT_DIR/prd.yml"
 PROGRESS_FILE="$SCRIPT_DIR/progress.txt"
 ARCHIVE_DIR="$SCRIPT_DIR/archive"
 LAST_BRANCH_FILE="$SCRIPT_DIR/.last-branch"
 
 # Archive previous run if branch changed
 if [ -f "$PRD_FILE" ] && [ -f "$LAST_BRANCH_FILE" ]; then
-  CURRENT_BRANCH=$(jq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo "")
+  # Try yq first, fallback to python if yq not available
+  if command -v yq >/dev/null 2>&1; then
+    CURRENT_BRANCH=$(yq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo "")
+  elif command -v python3 >/dev/null 2>&1; then
+    CURRENT_BRANCH=$(python3 -c "import yaml, sys; print(yaml.safe_load(open('$PRD_FILE'))['branchName'] if yaml.safe_load(open('$PRD_FILE')) and 'branchName' in yaml.safe_load(open('$PRD_FILE')) else '')" 2>/dev/null || echo "")
+  else
+    CURRENT_BRANCH=""
+  fi
   LAST_BRANCH=$(cat "$LAST_BRANCH_FILE" 2>/dev/null || echo "")
   
   if [ -n "$CURRENT_BRANCH" ] && [ -n "$LAST_BRANCH" ] && [ "$CURRENT_BRANCH" != "$LAST_BRANCH" ]; then
@@ -69,7 +76,14 @@ fi
 
 # Track current branch
 if [ -f "$PRD_FILE" ]; then
-  CURRENT_BRANCH=$(jq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo "")
+  # Try yq first, fallback to python if yq not available
+  if command -v yq >/dev/null 2>&1; then
+    CURRENT_BRANCH=$(yq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo "")
+  elif command -v python3 >/dev/null 2>&1; then
+    CURRENT_BRANCH=$(python3 -c "import yaml, sys; print(yaml.safe_load(open('$PRD_FILE'))['branchName'] if yaml.safe_load(open('$PRD_FILE')) and 'branchName' in yaml.safe_load(open('$PRD_FILE')) else '')" 2>/dev/null || echo "")
+  else
+    CURRENT_BRANCH=""
+  fi
   if [ -n "$CURRENT_BRANCH" ]; then
     echo "$CURRENT_BRANCH" > "$LAST_BRANCH_FILE"
   fi

@@ -34,7 +34,7 @@ setup_test_env() {
     mkdir -p "$runner_dir/cursor"
     cp "$CURRENT_SOURCE_DIR/ralph.sh" "$runner_dir/ralph.sh"
     cp "$CURRENT_SOURCE_DIR/prompt.md" "$runner_dir/prompt.md"
-    cp "$CURRENT_SOURCE_DIR/prd.json.example" "$runner_dir/prd.json.example"
+    cp "$CURRENT_SOURCE_DIR/prd.yml.example" "$runner_dir/prd.yml.example"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.cursor.md" "$runner_dir/cursor/prompt.cursor.md"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.convert-to-prd-json.md" "$runner_dir/cursor/prompt.convert-to-prd-json.md"
     cp "$CURRENT_SOURCE_DIR/cursor/convert-to-prd-json.sh" "$runner_dir/cursor/convert-to-prd-json.sh"
@@ -88,24 +88,20 @@ echo "Some cursor output"
 EOF
   chmod +x "$project_dir/bin/cursor"
 
-  # Create test prd.json
-  cat > "$RALPH_WORK_DIR/prd.json" << 'EOF'
-{
-  "project": "TestProject",
-  "branchName": "ralph/test",
-  "description": "Test feature",
-  "userStories": [
-    {
-      "id": "US-001",
-      "title": "Test story",
-      "description": "Test description",
-      "acceptanceCriteria": ["Test criterion"],
-      "priority": 1,
-      "passes": false,
-      "notes": ""
-    }
-  ]
-}
+  # Create test prd.yml
+  cat > "$RALPH_WORK_DIR/prd.yml" << 'EOF'
+project: "TestProject"
+branchName: "ralph/test"
+description: "Test feature"
+userStories:
+  - id: "US-001"
+    title: "Test story"
+    description: "Test description"
+    acceptanceCriteria:
+      - "Test criterion"
+    priority: 1
+    passes: false
+    notes: ""
 EOF
 
   # Create test progress.txt
@@ -290,25 +286,25 @@ test_progress_append_only() {
   cleanup_test_env
 }
 
-test_prd_json_parsing_failure() {
+test_prd_yml_parsing_failure() {
   setup_test_env
 
-  echo "invalid json content" > "$RALPH_WORK_DIR/prd.json"
+  echo "invalid yaml content: [" > "$RALPH_WORK_DIR/prd.yml"
 
   if bash "$RALPH_SCRIPT" 1 >/dev/null 2>&1; then
-    echo -e "${GREEN}PASS${NC}: Runner handles invalid prd.json gracefully"
+    echo -e "${GREEN}PASS${NC}: Runner handles invalid prd.yml gracefully"
   else
-    echo -e "${RED}FAIL${NC}: Runner crashes on invalid prd.json"
+    echo -e "${RED}FAIL${NC}: Runner crashes on invalid prd.yml"
     cleanup_test_env
     return 1
   fi
 
-  rm -f "$RALPH_WORK_DIR/prd.json"
+  rm -f "$RALPH_WORK_DIR/prd.yml"
 
   if bash "$RALPH_SCRIPT" 1 >/dev/null 2>&1; then
-    echo -e "${GREEN}PASS${NC}: Runner handles missing prd.json gracefully"
+    echo -e "${GREEN}PASS${NC}: Runner handles missing prd.yml gracefully"
   else
-    echo -e "${RED}FAIL${NC}: Runner crashes on missing prd.json"
+    echo -e "${RED}FAIL${NC}: Runner crashes on missing prd.yml"
     cleanup_test_env
     return 1
   fi
@@ -339,7 +335,7 @@ run_variant() {
   if test_stop_condition_complete; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_stop_condition_no_complete; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_progress_append_only; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_prd_json_parsing_failure; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_prd_yml_parsing_failure; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
 
   echo ""
   echo "========================================="

@@ -1,15 +1,15 @@
 #!/bin/bash
-# Convert PRD markdown -> prd.json using Cursor CLI (template version).
+# Convert PRD markdown -> prd.yml using Cursor CLI (template version).
 #
 # Usage:
-# ./scripts/ralph/cursor/convert-to-prd-json.sh <path-to-prd-markdown> [--model MODEL] [--out OUT_JSON]
+# ./scripts/ralph/cursor/convert-to-prd-json.sh <path-to-prd-markdown> [--model MODEL] [--out OUT_YML]
 #
 # Defaults:
 # - MODEL: "auto"
-# - OUT_JSON: ../prd.json (in scripts/ralph/ directory, same level as prd.json.example)
+# - OUT_YML: ../prd.yml (in scripts/ralph/ directory, same level as prd.yml.example)
 #
 # Notes:
-# - This is a convenience helper to streamline PRD->prd.json conversion.
+# - This is a convenience helper to streamline PRD->prd.yml conversion.
 # - It is intentionally separate from the Ralph iteration loop.
 
 set -e
@@ -17,7 +17,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PRD_MD_FILE=""
 MODEL="auto"
-OUT_JSON="$SCRIPT_DIR/../prd.json"
+OUT_YML="$SCRIPT_DIR/../prd.yml"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -26,7 +26,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --out)
-      OUT_JSON="${2:-}"
+      OUT_YML="${2:-}"
       shift 2
       ;;
     -*)
@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$PRD_MD_FILE" ]]; then
-  echo "Usage: $0 <path-to-prd-markdown> [--model MODEL] [--out OUT_JSON]" >&2
+  echo "Usage: $0 <path-to-prd-markdown> [--model MODEL] [--out OUT_YML]" >&2
   exit 2
 fi
 
@@ -57,7 +57,7 @@ if [[ ! -f "$PROMPT_TEMPLATE_FILE" ]]; then
   exit 1
 fi
 
-EXAMPLE_FILE="$SCRIPT_DIR/../prd.json.example"
+EXAMPLE_FILE="$SCRIPT_DIR/../prd.yml.example"
 
 if [[ ! -f "$EXAMPLE_FILE" ]]; then
   echo "Error: missing example file: $EXAMPLE_FILE" >&2
@@ -74,7 +74,7 @@ PROMPT_TEXT="$(
   printf "Read the format reference at: %s\n" "$EXAMPLE_FILE"
   printf "\n"
   printf "## Output\n"
-  printf "Write/overwrite prd.json at: %s\n" "$OUT_JSON"
+  printf "Write/overwrite prd.yml at: %s\n" "$OUT_YML"
 )"
 
 exec "$CURSOR_BIN" --model "$MODEL" --print --force --approve-mcps "$PROMPT_TEXT" </dev/null
