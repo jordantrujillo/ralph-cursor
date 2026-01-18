@@ -4,7 +4,7 @@ Ralph Wiggum - Long-running AI agent loop
 Usage: ./ralph.py [max_iterations] [--worker amp|cursor] [--cursor-timeout SECONDS] [--model MODEL]
 or set RALPH_WORKER environment variable (amp|cursor)
 or set RALPH_MODEL environment variable (for cursor worker)
-Default worker is 'amp' if not specified
+Default worker is 'cursor' if not specified
 Default model is 'auto' if not specified (only applies to cursor worker)
 """
 
@@ -20,7 +20,7 @@ from pathlib import Path
 
 
 class RalphAgent:
-    def __init__(self, max_iterations=10, worker="amp", cursor_timeout=1800, model="auto"):
+    def __init__(self, max_iterations=10, worker="cursor", cursor_timeout=1800, model="auto"):
         self.max_iterations = max_iterations
         self.worker = worker
         self.cursor_timeout = cursor_timeout
@@ -311,7 +311,7 @@ class RalphAgent:
 def main():
     """Main entry point"""
     # Parse environment variables
-    worker = os.environ.get("RALPH_WORKER", "amp")
+    worker = os.environ.get("RALPH_WORKER", "cursor")
     cursor_timeout = int(os.environ.get("RALPH_CURSOR_TIMEOUT", "1800"))
     model = os.environ.get("RALPH_MODEL", "auto")
     
@@ -331,7 +331,7 @@ def main():
         "--worker",
         choices=["amp", "cursor"],
         default=worker,
-        help="Worker type: amp or cursor (default: from RALPH_WORKER env or 'amp')"
+        help="Worker type: amp or cursor (default: from RALPH_WORKER env or 'cursor')"
     )
     parser.add_argument(
         "--cursor-timeout",
