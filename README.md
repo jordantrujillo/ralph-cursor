@@ -2,7 +2,7 @@
 
 ![Ralph](ralph.webp)
 
-Ralph is an autonomous AI agent loop that runs an AI worker (default: [Amp](https://ampcode.com), optional: Cursor CLI) repeatedly until all PRD items are complete. Each iteration is a fresh worker invocation with clean context. Memory persists via git history, `scripts/ralph/progress.txt`, and `scripts/ralph/prd.yml`.
+Ralph is an autonomous AI agent loop that runs Cursor CLI repeatedly until all PRD items are complete. Each iteration is a fresh worker invocation with clean context. Memory persists via git history, `scripts/ralph/progress.txt`, and `scripts/ralph/prd.yml`.
 
 Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
@@ -10,9 +10,7 @@ Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
 ## Prerequisites
 
-- One worker installed:
-  - [Amp CLI](https://ampcode.com) installed and authenticated, and/or
-  - Cursor CLI (`cursor`) installed and authenticated
+- Cursor CLI (`cursor`) installed and authenticated
 - `yq` installed (`brew install yq` on macOS) or Python 3 with PyYAML (`pip install pyyaml`)
 - A git repository for your project
 
@@ -30,50 +28,16 @@ chmod +x scripts/ralph/ralph.sh
 chmod +x scripts/ralph/cursor/convert-to-prd-json.sh
 ```
 
-### Option 2: Install skills globally
-
-Copy the skills to your Amp config for use across all projects:
-
-```bash
-cp -r skills/prd ~/.config/amp/skills/
-cp -r skills/ralph ~/.config/amp/skills/
-```
-
-### Configure Amp auto-handoff (recommended)
-
-Add to `~/.config/amp/settings.json`:
-
-```json
-{
-  "amp.experimental.autoHandoff": { "context": 90 }
-}
-```
-
-This enables automatic handoff when context fills up, allowing Ralph to handle large stories that exceed a single context window.
 
 ## Workflow
 
 ### 1. Create a PRD
 
-If you use Amp skills, use the PRD skill to generate a detailed requirements document:
-
-```
-Load the prd skill and create a PRD for [your feature description]
-```
-
-Answer the clarifying questions. The skill saves output to `tasks/prd-[feature-name].md`.
-
-If you use Cursor in the IDE, you can also generate a PRD using the repo's Cursor rules (see `.cursor/rules/`).
+Generate a PRD using Cursor in the IDE with the repo's Cursor rules (see `.cursor/rules/`), or create one manually.
 
 ### 2. Convert PRD to Ralph format
 
-If you use Amp skills, use the Ralph skill to convert the markdown PRD to YAML:
-
-```
-Load the ralph skill and convert tasks/prd-[feature-name].md to prd.yml
-```
-
-Alternatively, you can convert PRD markdown to `scripts/ralph/prd.yml` using the Cursor helper script:
+Convert PRD markdown to `scripts/ralph/prd.yml` using the Cursor helper script:
 
 ```bash
 ./scripts/ralph/cursor/convert-to-prd-json.sh tasks/prd-[feature-name].md
@@ -84,23 +48,23 @@ This creates `scripts/ralph/prd.yml` with user stories structured for autonomous
 ### 3. Run Ralph
 
 ```bash
-./scripts/ralph/ralph.sh [max_iterations] [--worker amp|cursor] [--cursor-timeout SECONDS]
+./scripts/ralph/ralph.sh [max_iterations] [--cursor-timeout SECONDS]
 ```
 
 Default is 10 iterations.
 
-The runner loop will invoke the selected worker repeatedly. The worker prompt instructs it to:
+The runner loop will invoke Cursor CLI repeatedly. The worker prompt instructs it to:
 - Read `scripts/ralph/prd.yml` and `scripts/ralph/progress.txt`
 - Implement one story per iteration, run checks, commit, and update `passes: true`
 - Stop by outputting `<promise>COMPLETE</promise>` when all stories pass
 
 Examples:
 ```bash
-# Default worker is Amp
+# Run with default settings
 ./scripts/ralph/ralph.sh 10
 
-# Run with Cursor CLI (with a per-iteration timeout)
-./scripts/ralph/ralph.sh 10 --worker cursor --cursor-timeout 1800
+# Run with a per-iteration timeout
+./scripts/ralph/ralph.sh 10 --cursor-timeout 1800
 ```
 
 Note: `--cursor-timeout` only applies if a `timeout` binary is available on your PATH. If it isn't, Ralph will run Cursor without a hard timeout.
@@ -109,15 +73,12 @@ Note: `--cursor-timeout` only applies if a `timeout` binary is available on your
 
 | File | Purpose |
 |------|---------|
-| `scripts/ralph/ralph.sh` | The bash loop that spawns fresh worker invocations |
-| `scripts/ralph/prompt.md` | Instructions given to each Amp iteration |
+| `scripts/ralph/ralph.sh` | The bash loop that spawns fresh Cursor invocations |
 | `scripts/ralph/cursor/prompt.cursor.md` | Instructions given to each Cursor iteration |
 | `scripts/ralph/cursor/convert-to-prd-json.sh` | Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI |
 | `scripts/ralph/prd.yml` | User stories with `passes` status (the task list) |
 | `scripts/ralph/prd.yml.example` | Example PRD format for reference |
 | `scripts/ralph/progress.txt` | Append-only learnings for future iterations |
-| `skills/prd/` | Skill for generating PRDs |
-| `skills/ralph/` | Skill for converting PRDs to YAML |
 | `flowchart/` | Interactive visualization of how Ralph works |
 
 ## Flowchart
@@ -138,7 +99,7 @@ npm run dev
 
 ### Each Iteration = Fresh Context
 
-Each iteration spawns a **new worker invocation** (Amp or Cursor) with clean context. The only memory between iterations is:
+Each iteration spawns a **new Cursor invocation** with clean context. The only memory between iterations is:
 - Git history (commits from previous iterations)
 - `scripts/ralph/progress.txt` (learnings and context)
 - `scripts/ralph/prd.yml` (which stories are done)
@@ -160,7 +121,7 @@ Too big (split these):
 
 ### AGENTS.md Updates Are Critical
 
-After each iteration, Ralph updates the relevant `AGENTS.md` files with learnings. This is key because Amp automatically reads these files, so future iterations (and future human developers) benefit from discovered patterns, gotchas, and conventions.
+After each iteration, Ralph updates the relevant `AGENTS.md` files with learnings. This helps future iterations (and future human developers) benefit from discovered patterns, gotchas, and conventions.
 
 Examples of what to add to AGENTS.md:
 - Patterns discovered ("this codebase uses X for Y")
@@ -176,7 +137,7 @@ Ralph only works if there are feedback loops:
 
 ### Browser Verification for UI Stories
 
-Frontend stories must include "Verify in browser using dev-browser skill" in acceptance criteria. Ralph will use the dev-browser skill to navigate to the page, interact with the UI, and confirm changes work.
+Frontend stories must include "Verify in browser using browser MCP tools" in acceptance criteria. Ralph will use browser MCP tools (if configured) to navigate to the page, interact with the UI, and confirm changes work.
 
 ### Stop Condition
 
@@ -201,14 +162,13 @@ git log --oneline -10
 
 ## Customizing prompts
 
-Edit the worker prompt(s) to customize Ralph's behavior for your project:
+Edit the worker prompt to customize Ralph's behavior for your project:
 - Add project-specific quality check commands
 - Include codebase conventions
 - Add common gotchas for your stack
 
-Worker prompt locations:
-- Amp: `scripts/ralph/prompt.md`
-- Cursor: `scripts/ralph/cursor/prompt.cursor.md`
+Worker prompt location:
+- `scripts/ralph/cursor/prompt.cursor.md`
 
 ## Archiving
 
@@ -217,4 +177,3 @@ Ralph automatically archives previous runs when you start a new feature (differe
 ## References
 
 - [Geoffrey Huntley's Ralph article](https://ghuntley.com/ralph/)
-- [Amp documentation](https://ampcode.com/manual)

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Test suite for Ralph runner + templates
-# Tests run without requiring real Amp or real Cursor (use stub binaries via PATH).
+# Tests run without requiring real Cursor (use stub binaries via PATH).
 
 set -e
 
@@ -33,7 +33,6 @@ setup_test_env() {
     runner_dir="$project_dir/scripts/ralph"
     mkdir -p "$runner_dir/cursor"
     cp "$CURRENT_SOURCE_DIR/ralph.sh" "$runner_dir/ralph.sh"
-    cp "$CURRENT_SOURCE_DIR/prompt.md" "$runner_dir/prompt.md"
     cp "$CURRENT_SOURCE_DIR/prd.yml.example" "$runner_dir/prd.yml.example"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.cursor.md" "$runner_dir/cursor/prompt.cursor.md"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.convert-to-prd-json.md" "$runner_dir/cursor/prompt.convert-to-prd-json.md"
@@ -52,21 +51,6 @@ setup_test_env() {
   # Create stub binaries
   mkdir -p "$project_dir/bin"
   export PATH="$project_dir/bin:$PATH"
-
-  # Create stub amp binary
-  cat > "$project_dir/bin/amp" << 'EOF'
-#!/bin/bash
-# Stub amp binary for testing
-echo "Stub amp executed with args: $@"
-if [ -t 0 ]; then
-  echo "Stub amp: stdin is a TTY"
-else
-  echo "Stub amp: stdin is not a TTY"
-fi
-echo "Some amp output"
-echo "<promise>COMPLETE</promise>"
-EOF
-  chmod +x "$project_dir/bin/amp"
 
   # Create stub cursor binary
   cat > "$project_dir/bin/cursor" << 'EOF'
@@ -115,27 +99,10 @@ cleanup_test_env() {
   rm -rf "$TEST_DIR"
 }
 
-test_default_worker_amp() {
+test_cursor_worker() {
   setup_test_env
 
   OUTPUT=$(bash "$RALPH_SCRIPT" 1 2>&1 || true)
-
-  if echo "$OUTPUT" | grep -q "Stub amp executed"; then
-    echo -e "${GREEN}PASS${NC}: Default worker is Amp"
-  else
-    echo -e "${RED}FAIL${NC}: Default worker is not Amp"
-    echo "Output: $OUTPUT"
-    cleanup_test_env
-    return 1
-  fi
-
-  cleanup_test_env
-}
-
-test_cursor_worker_explicit() {
-  setup_test_env
-
-  OUTPUT=$(bash "$RALPH_SCRIPT" 1 --worker cursor 2>&1 || true)
 
   if echo "$OUTPUT" | grep -q "Stub cursor executed"; then
     echo -e "${GREEN}PASS${NC}: Cursor worker used when explicitly selected"
@@ -180,7 +147,7 @@ test_cursor_invocation_flags() {
 test_cursor_no_pty() {
   setup_test_env
 
-  OUTPUT=$(bash "$RALPH_SCRIPT" 1 --worker cursor 2>&1 || true)
+  OUTPUT=$(bash "$RALPH_SCRIPT" 1 2>&1 || true)
 
   if echo "$OUTPUT" | grep -q "stdin is not a TTY"; then
     echo -e "${GREEN}PASS${NC}: Cursor invocation uses normal spawn (no PTY)"
@@ -224,12 +191,12 @@ test_convert_prd_json_model_override() {
 test_stop_condition_complete() {
   setup_test_env
 
-  cat > "$TEST_DIR/project/bin/amp" << 'EOF'
+  cat > "$TEST_DIR/project/bin/cursor" << 'EOF'
 #!/bin/bash
 echo "Iteration output"
 echo "<promise>COMPLETE</promise>"
 EOF
-  chmod +x "$TEST_DIR/project/bin/amp"
+  chmod +x "$TEST_DIR/project/bin/cursor"
 
   OUTPUT=$(bash "$RALPH_SCRIPT" 10 2>&1 || true)
 
@@ -248,11 +215,11 @@ EOF
 test_stop_condition_no_complete() {
   setup_test_env
 
-  cat > "$TEST_DIR/project/bin/amp" << 'EOF'
+  cat > "$TEST_DIR/project/bin/cursor" << 'EOF'
 #!/bin/bash
 echo "Iteration output without COMPLETE"
 EOF
-  chmod +x "$TEST_DIR/project/bin/amp"
+  chmod +x "$TEST_DIR/project/bin/cursor"
 
   OUTPUT=$(bash "$RALPH_SCRIPT" 2 2>&1 || true)
 
@@ -327,8 +294,7 @@ run_variant() {
   local tests_passed=0
   local tests_failed=0
 
-  if test_default_worker_amp; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_cursor_worker_explicit; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_cursor_worker; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_cursor_invocation_flags; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_cursor_no_pty; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_convert_prd_json_model_override; then ((tests_passed+=1)); else ((tests_failed+=1)); fi

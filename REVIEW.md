@@ -26,7 +26,7 @@
    - **Fix**: Consider piping prompt via stdin instead (though original bash script also uses argument)
 
 ### 5. **Subprocess Error Handling** ✅ FIXED
-   - **Issue**: In `_run_amp_iteration()` and `_run_cursor_iteration()`, if `proc` is not defined when exception occurs, it will fail with NameError
+   - **Issue**: In `_run_cursor_iteration()`, if `proc` is not defined when exception occurs, it will fail with NameError
    - **Location**: Both iteration methods
    - **Fix Applied**: Initialize `proc = None` at start, check `if proc is not None` before cleanup operations
 

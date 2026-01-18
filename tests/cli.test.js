@@ -148,12 +148,6 @@ exit 0
     const binDir = join(testDir, 'bin');
     await import('fs/promises').then(fs => fs.mkdir(binDir, { recursive: true }));
 
-    const stubAmp = `#!/bin/bash
-echo "stub amp"
-exit 0
-`;
-    await import('fs/promises').then(fs => fs.writeFile(join(binDir, 'amp'), stubAmp));
-    await import('fs/promises').then(fs => fs.chmod(join(binDir, 'amp'), 0o755));
 
     // Run with modified PATH
     const env = { ...process.env, PATH: `${binDir}:${process.env.PATH}` };
@@ -184,13 +178,12 @@ exit 0
 
     assert(result.stdout.includes('STUB_RUNNER_CALLED'), 'Runner should be invoked');
     assert(result.stdout.includes('ITERATIONS: 5'), 'Iterations should be passed');
-    assert(result.stdout.includes('WORKER: amp'), 'Default worker should be amp');
   } finally {
     await rm(testDir, { recursive: true, force: true });
   }
 });
 
-test('ralph run --worker cursor passes cursor worker', async () => {
+test('ralph run executes ralph.sh', async () => {
   const testDir = await mkdtemp(join(tmpdir(), 'ralph-test-'));
   try {
     // Initialize
@@ -198,7 +191,8 @@ test('ralph run --worker cursor passes cursor worker', async () => {
 
     // Create stub runner
     const stubRunner = `#!/bin/bash
-echo "WORKER: $3"
+echo "STUB_RUNNER_CALLED"
+echo "ITERATIONS: $1"
 exit 0
 `;
     await import('fs/promises').then(fs => fs.writeFile(join(testDir, 'scripts/ralph/ralph.sh'), stubRunner));
@@ -218,7 +212,7 @@ exit 0
     // Run with cursor worker
     const env = { ...process.env, PATH: `${binDir}:${process.env.PATH}` };
     const result = await new Promise((resolve, reject) => {
-      const child = spawn('node', [CLI_PATH, 'run', '--worker', 'cursor'], {
+      const child = spawn('node', [CLI_PATH, 'run'], {
         cwd: testDir,
         env,
         stdio: 'pipe',
@@ -259,66 +253,17 @@ test('ralph run fails if not initialized', async () => {
   }
 });
 
-test('ralph init --worker amp only installs amp files', async () => {
+test('ralph init installs cursor files', async () => {
   const testDir = await mkdtemp(join(tmpdir(), 'ralph-test-'));
   try {
-    const result = await runCLI(['init', '--worker', 'amp'], testDir);
-    assert.strictEqual(result.code, 0);
-
-    // Check amp files exist
-    await access(join(testDir, 'scripts/ralph/prompt.md'), constants.F_OK);
-
-    // Check cursor files do NOT exist
-    try {
-      await access(join(testDir, 'scripts/ralph/cursor/prompt.cursor.md'), constants.F_OK);
-      assert.fail('Cursor files should not be installed with --worker amp');
-    } catch (err) {
-      // Expected - file should not exist
-    }
-
-    // Check common files exist
-    await access(join(testDir, 'scripts/ralph/ralph.sh'), constants.F_OK);
-    await access(join(testDir, 'scripts/ralph/prd.yml.example'), constants.F_OK);
-  } finally {
-    await rm(testDir, { recursive: true, force: true });
-  }
-});
-
-test('ralph init --worker cursor only installs cursor files', async () => {
-  const testDir = await mkdtemp(join(tmpdir(), 'ralph-test-'));
-  try {
-    const result = await runCLI(['init', '--worker', 'cursor'], testDir);
+    const result = await runCLI(['init'], testDir);
     assert.strictEqual(result.code, 0);
 
     // Check cursor files exist
     await access(join(testDir, 'scripts/ralph/cursor/prompt.cursor.md'), constants.F_OK);
     await access(join(testDir, 'scripts/ralph/cursor/convert-to-prd-json.sh'), constants.F_OK);
 
-    // Check amp files do NOT exist
-    try {
-      await access(join(testDir, 'scripts/ralph/prompt.md'), constants.F_OK);
-      assert.fail('Amp files should not be installed with --worker cursor');
-    } catch (err) {
-      // Expected - file should not exist
-    }
-
     // Check common files exist
-    await access(join(testDir, 'scripts/ralph/ralph.sh'), constants.F_OK);
-    await access(join(testDir, 'scripts/ralph/prd.yml.example'), constants.F_OK);
-  } finally {
-    await rm(testDir, { recursive: true, force: true });
-  }
-});
-
-test('ralph init --worker both installs all files', async () => {
-  const testDir = await mkdtemp(join(tmpdir(), 'ralph-test-'));
-  try {
-    const result = await runCLI(['init', '--worker', 'both'], testDir);
-    assert.strictEqual(result.code, 0);
-
-    // Check all files exist
-    await access(join(testDir, 'scripts/ralph/prompt.md'), constants.F_OK);
-    await access(join(testDir, 'scripts/ralph/cursor/prompt.cursor.md'), constants.F_OK);
     await access(join(testDir, 'scripts/ralph/ralph.sh'), constants.F_OK);
     await access(join(testDir, 'scripts/ralph/prd.yml.example'), constants.F_OK);
   } finally {

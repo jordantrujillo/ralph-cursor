@@ -29,6 +29,8 @@ APPEND to progress.txt (never replace, always append):
 ---
 ```
 
+Note: The thread URL reference from Amp has been removed since we're using Cursor.
+
 The learnings section is critical - it helps future iterations avoid repeating mistakes and understand the codebase better.
 
 ## Consolidate Patterns

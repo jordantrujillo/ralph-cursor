@@ -40,7 +40,7 @@ userStories:
 
 **Each story must be completable in ONE Ralph iteration (one context window).**
 
-Ralph spawns a fresh Amp instance per iteration with no memory of previous work. If a story is too big, the LLM runs out of context before finishing and produces broken code.
+Ralph spawns a fresh Cursor instance per iteration with no memory of previous work. If a story is too big, the LLM runs out of context before finishing and produces broken code.
 
 ### Right-sized stories:
 - Add a database column and migration
