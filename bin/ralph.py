@@ -182,14 +182,60 @@ def handle_run(args):
     sys.exit(result.returncode)
 
 
+def print_help():
+    """Print help message."""
+    help_text = """Ralph CLI - Autonomous AI agent loop installer and runner
+
+Commands:
+  init              Initialize Ralph in the current repository
+  run               Run Ralph agent loop
+
+Init:
+  ralph init [--force] [--cursor-rules] [--cursor-cli]
+  
+  Options:
+    --force         Overwrite existing files
+    --cursor-rules  Also install .cursor/rules/ralph-prd.mdc
+    --cursor-cli    Also install .cursor/cli.json template
+
+Run:
+  ralph run [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
+  
+  Arguments:
+    max_iterations  Maximum number of iterations (default: 10)
+  
+  Options:
+    --cursor-timeout SECONDS  Timeout for cursor worker in seconds 
+                              (default: 1800, from RALPH_CURSOR_TIMEOUT env)
+    --model MODEL            Model to use for cursor worker 
+                              (default: 'auto', from RALPH_MODEL env)
+
+The run command executes scripts/ralph/ralph.py which uses Cursor CLI as the worker.
+
+Examples:
+  ralph init
+  ralph init --force --cursor-rules --cursor-cli
+  ralph run
+  ralph run 20
+  ralph run 10 --cursor-timeout 3600 --model claude-3.5-sonnet
+"""
+    print(help_text)
+
+
 def main():
     """Main entry point."""
     if len(sys.argv) < 2:
         print('Usage: ralph <init|run> [options]', file=sys.stderr)
+        print('Run "ralph --help" for more information.', file=sys.stderr)
         sys.exit(1)
 
     command = sys.argv[1]
     args = sys.argv[2:]
+
+    # Handle help flags
+    if command in ('-h', '--help'):
+        print_help()
+        sys.exit(0)
 
     if command == 'init':
         handle_init(args)
@@ -198,6 +244,7 @@ def main():
     else:
         print(f'Unknown command: {command}', file=sys.stderr)
         print('Usage: ralph <init|run> [options]', file=sys.stderr)
+        print('Run "ralph --help" for more information.', file=sys.stderr)
         sys.exit(1)
 
 
