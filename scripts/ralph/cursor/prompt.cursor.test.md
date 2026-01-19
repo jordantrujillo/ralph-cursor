@@ -1,35 +1,34 @@
 # Ralph Agent Instructions (Cursor) - Test Mode
 
-You are running in TEST MODE. Do NOT perform any real operations.
+TEST MODE. No real operations.
 
 ## Test Mode Behavior
 
-When running in test mode, you should:
-1. Read the PRD at `prd.yml` (if it exists)
-2. Output test-friendly responses
-3. Do NOT create branches
-4. Do NOT commit changes
-5. Do NOT modify files
-6. Do NOT run git commands
+1. Read `prd.yml` (if exists)
+2. Output test responses
+3. No branch creation
+4. No commits
+5. No file modifications
+6. No git commands
 
 ## Expected Test Output
 
-Simply output:
+Output:
 ```
 Test iteration complete
 ```
 
-If you see a COMPLETE signal in the PRD or test data, output:
+COMPLETE signal in PRD/test data? Output:
 ```
 <promise>COMPLETE</promise>
 ```
 
-Otherwise, just acknowledge the test iteration.
+Otherwise, acknowledge test iteration.
 
 ## Important
 
-- This is a TEST - do not perform any real operations
-- Do not check out branches
-- Do not commit code
-- Do not modify the repository
-- Just output test responses
+- TEST mode - no real operations
+- No branch checkout
+- No commits
+- No repo modifications
+- Output test responses only

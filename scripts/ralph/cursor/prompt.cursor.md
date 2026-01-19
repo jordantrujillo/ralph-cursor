@@ -1,141 +1,139 @@
 # Ralph Agent Instructions (Cursor)
 
-You are an autonomous coding agent working on a software project using Cursor.
+Autonomous coding agent. Use Cursor.
 
-## Your Task
+## Task
 
-1. Read the PRD at `scripts/ralph/prd.yml` (in the same directory as this file)
-2. Read the progress log at `progress.txt` (check Codebase Patterns section first)
-3. **Determine current phase:**
-   - If PRD has `phases`: Find the first phase (by phaseNumber) that contains at least one story with `passes: false`
-   - If no phases exist (legacy format): Treat the entire PRD as a single phase with branchName from top-level `branchName`
-   - **Note:** Phases are processed sequentially - you only work on one phase at a time
-4. **Check out/create phase branch:**
-   - Get the `branchName` for the current phase
-   - If branch doesn't exist:
-     - If this is phase 1: Create branch from the current branch (whatever branch you're currently on)
-     - If this is phase N (N > 1): Create branch from the previous phase's branch
-   - Check out the phase branch
-5. Pick the **highest priority** user story from the current phase where `passes: false`
-6. Implement that single user story
-7. Run quality checks (e.g., typecheck, lint, test - use whatever your project requires)
-8. Update AGENTS.md files if you discover reusable patterns (see below)
-9. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
-10. Update the PRD to set `passes: true` for the completed story
-11. Append your progress to `progress.txt`
+1. Read `scripts/ralph/prd.yml`
+2. Read `progress.txt` (check Codebase Patterns first)
+3. **Find current phase:**
+   - PRD has `phases`: Find first phase (by phaseNumber) with `passes: false` story
+   - No phases (legacy): Entire PRD = single phase, use top-level `branchName`
+   - Work one phase at a time
+4. **Checkout/create phase branch:**
+   - Get phase `branchName`
+   - Branch missing:
+     - Phase 1: Create from current branch
+     - Phase N (N > 1): Create from previous phase branch
+   - Checkout phase branch
+5. Pick highest priority story from current phase where `passes: false`
+6. Implement that story
+7. Run quality checks (typecheck, lint, test)
+8. Update AGENTS.md if reusable patterns found (see below)
+9. If checks pass: 
+   - Set story `passes: true` in PRD
+   - Append progress to `progress.txt`
+   - Commit ALL with `feat: [Story ID] - [Story Title]`, attempt to push to remote branch, do not try again if fails.
 
-## Progress Report Format
+## Progress Format
 
-APPEND to progress.txt (never replace, always append):
+APPEND to progress.txt (never replace):
 ```
 ## [Date/Time] - [Story ID]
-- What was implemented
+- What implemented
 - Files changed
-- **Learnings for future iterations:**
-  - Patterns discovered (e.g., "this codebase uses X for Y")
-  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-  - Useful context (e.g., "the evaluation panel is in component X")
+- **Learnings:**
+  - Patterns (e.g., "codebase uses X for Y")
+  - Gotchas (e.g., "update Z when changing W")
+  - Context (e.g., "evaluation panel in component X")
 ---
 ```
 
-Note: The thread URL reference from Amp has been removed since we're using Cursor.
-
-The learnings section is critical - it helps future iterations avoid repeating mistakes and understand the codebase better.
+Learnings section critical - helps future iterations avoid mistakes.
 
 ## Consolidate Patterns
 
-If you discover a **reusable pattern** that future iterations should know, add it to the `## Codebase Patterns` section at the TOP of progress.txt (create it if it doesn't exist). This section should consolidate the most important learnings:
+Reusable pattern found? Add to `## Codebase Patterns` at TOP of progress.txt (create if missing):
 
 ```
 ## Codebase Patterns
-- Example: Use `sql<number>` template for aggregations
-- Example: Always use `IF NOT EXISTS` for migrations
-- Example: Export types from actions.ts for UI components
+- Use `sql<number>` template for aggregations
+- Always use `IF NOT EXISTS` for migrations
+- Export types from actions.ts for UI components
 ```
 
-Only add patterns that are **general and reusable**, not story-specific details.
+Only general/reusable patterns, not story-specific.
 
-## Update AGENTS.md Files
+## Update AGENTS.md
 
-Before committing, check if any edited files have learnings worth preserving in nearby AGENTS.md files:
+Before commit, check edited files for learnings:
 
-1. **Identify directories with edited files** - Look at which directories you modified
-2. **Check for existing AGENTS.md** - Look for AGENTS.md in those directories or parent directories
-3. **Add valuable learnings** - If you discovered something future developers/agents should know:
-   - API patterns or conventions specific to that module
-   - Gotchas or non-obvious requirements
-   - Dependencies between files
-   - Testing approaches for that area
-   - Configuration or environment requirements
+1. Find directories with edited files
+2. Check for AGENTS.md in those/parent directories
+3. Add valuable learnings:
+   - API patterns/conventions for that module
+   - Gotchas/non-obvious requirements
+   - File dependencies
+   - Testing approaches
+   - Config/env requirements
 
-**Examples of good AGENTS.md additions:**
-- "When modifying X, also update Y to keep them in sync"
-- "This module uses pattern Z for all API calls"
-- "Tests require the dev server running on PORT 3000"
-- "Field names must match the template exactly"
+**Good AGENTS.md additions:**
+- "Modifying X requires updating Y"
+- "Module uses pattern Z for API calls"
+- "Tests need dev server on PORT 3000"
+- "Field names must match template exactly"
 
-**Do NOT add:**
-- Story-specific implementation details
-- Temporary debugging notes
-- Information already in progress.txt
+**Don't add:**
+- Story-specific details
+- Temporary debug notes
+- Info already in progress.txt
 
-Only update AGENTS.md if you have **genuinely reusable knowledge** that would help future work in that directory.
+Only update if genuinely reusable knowledge for future work.
 
-## Quality Requirements
+## Quality
 
-- ALL commits must pass your project's quality checks (typecheck, lint, test)
-- Do NOT commit broken code
-- Keep changes focused and minimal
-- Follow existing code patterns
+- All commits must pass quality checks (typecheck, lint, test)
+- No broken code commits
+- Keep changes focused/minimal
+- Follow existing patterns
 
-## Browser Testing (Required for Frontend Stories)
+## Browser Testing (Frontend Required)
 
-For any story that changes UI, you MUST verify it works in the browser:
+UI story changes? Must verify in browser:
 
-- If browser MCP tools are available (configured in your Cursor setup), use them to:
-  1. Navigate to the relevant page
-  2. Verify the UI changes work as expected
-  3. Take a screenshot if helpful for the progress log
-- If no browser MCP tools are configured:
-  - Ensure the story has automated tests (e.g., Playwright, Cypress) that cover the UI changes
-  - If tests are not feasible, mark the story as "needs manual verification" in your progress entry
-  - Do NOT mark the story as complete until verification is possible
+- Browser MCP tools available:
+  1. Navigate to page
+  2. Verify UI works
+  3. Screenshot if helpful
+- No browser MCP tools:
+  - Ensure automated tests (Playwright, Cypress) cover UI
+  - If tests not feasible: Mark "needs manual verification" in progress
+  - Don't mark complete until verified
 
-A frontend story is NOT complete until browser verification passes (via MCP tools or automated tests).
+Frontend story NOT complete until browser verification passes (MCP tools or automated tests).
 
 ## Stop Condition
 
-After completing a user story, check completion status:
+After story complete, check status:
 
-1. **Check current phase completion:**
-   - If all stories in the current phase have `passes: true`:
-     - If there are more phases with incomplete stories: Continue to next phase (next iteration will handle it)
-     - If this was the last phase: Check if ALL stories across ALL phases have `passes: true`
+1. **Current phase complete?**
+   - All stories in phase have `passes: true`:
+     - More phases with incomplete stories: Continue (next iteration handles)
+     - Last phase: Check if ALL stories across ALL phases have `passes: true`
    
-2. **If ALL stories across ALL phases are complete:**
-   - Reply with: `<promise>COMPLETE</promise>`
+2. **ALL stories complete?**
+   - Reply: `<promise>COMPLETE</promise>`
    
-3. **If there are still incomplete stories:**
-   - End your response normally (another iteration will pick up the next story)
+3. **Still incomplete stories?**
+   - End normally (next iteration picks up)
 
-**Phase Transition Note:** When a phase is complete, the next iteration will automatically move to the next phase's branch. You don't need to handle phase transitions within a single iteration - just complete stories in the current phase.
+**Phase transition:** Phase complete? Next iteration moves to next phase branch. Don't handle transitions in single iteration - just complete stories in current phase.
 
 ## Important
 
-- Work on ONE story per iteration
-- **Work only on stories from the current phase**
-- **Ensure you're on the correct phase branch before starting work**
-- **Phase branches are built on top of previous phase branches** (or main for phase 1)
+- ONE story per iteration
+- **Only stories from current phase**
+- **On correct phase branch before starting**
+- **Phase branches: Phase 1 from current branch, Phase N from previous phase branch**
 - Commit frequently
 - Keep CI green
-- Read the Codebase Patterns section in progress.txt before starting
-- Use Cursor's file editing capabilities to make changes directly
-- Rely on `.cursor/rules/*` files for repository-specific conventions when available
+- Read Codebase Patterns in progress.txt first
+- Use Cursor file editing
+- Use `.cursor/rules/*` for repo conventions
 
 ## Phase Branch Management
 
-When working with phases:
-- **Phase 1 branch:** Created from the current branch (whatever branch you're on when starting Ralph)
-- **Phase N branch (N > 1):** Created from the previous phase's branch
-- This allows each phase to be reviewed as a separate PR
-- Each phase branch contains only the work from that phase (plus previous phases as base)
+- **Phase 1:** Create from current branch (whatever branch when starting Ralph)
+- **Phase N (N > 1):** Create from previous phase branch
+- Each phase = separate PR
+- Phase branch = that phase work + previous phases as base

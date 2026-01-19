@@ -15,6 +15,12 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Store original environment variables at script start (before any modifications)
+ORIGINAL_HOME="${HOME:-}"
+ORIGINAL_PATH="${PATH:-}"
+ORIGINAL_OSTYPE="${OSTYPE:-}"
+ORIGINAL_SHELL="${SHELL:-}"
+
 # Helper function to run install script
 # Returns exit code and outputs to stdout/stderr
 run_install() {
@@ -39,15 +45,55 @@ setup_test_env() {
 cleanup_test_env() {
   cd "$REPO_ROOT" || true
   rm -rf "$TEST_DIR" 2>/dev/null || true
-  # Restore original environment variables if they were modified
-  unset HOME 2>/dev/null || true
-  unset PATH 2>/dev/null || true
-  unset OSTYPE 2>/dev/null || true
-  unset SHELL 2>/dev/null || true
 }
 
-# Set up trap to ensure cleanup on script exit
-trap cleanup_test_env EXIT INT TERM
+# Function to get default PATH for the current system
+get_default_path() {
+  # Try to get a sensible default PATH
+  # On macOS, this typically includes Homebrew paths
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    # Default macOS PATH with Homebrew
+    echo "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/opt/homebrew/sbin"
+  else
+    # Default Linux PATH
+    echo "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  fi
+}
+
+# Function to restore original environment variables
+restore_env() {
+  if [ -n "$ORIGINAL_HOME" ]; then
+    export HOME="$ORIGINAL_HOME"
+  else
+    unset HOME 2>/dev/null || true
+  fi
+  
+  if [ -n "$ORIGINAL_PATH" ]; then
+    export PATH="$ORIGINAL_PATH"
+  else
+    # If ORIGINAL_PATH is empty, restore to a sensible default
+    export PATH="$(get_default_path)"
+  fi
+  
+  if [ -n "$ORIGINAL_OSTYPE" ]; then
+    export OSTYPE="$ORIGINAL_OSTYPE"
+  else
+    unset OSTYPE 2>/dev/null || true
+  fi
+  
+  if [ -n "$ORIGINAL_SHELL" ]; then
+    export SHELL="$ORIGINAL_SHELL"
+  else
+    unset SHELL 2>/dev/null || true
+  fi
+}
+
+# Set up trap to ensure cleanup and restoration on script exit
+cleanup_and_restore() {
+  cleanup_test_env
+  restore_env
+}
+trap cleanup_and_restore EXIT INT TERM
 
 # Test: Missing bin/ralph.py should provide clear error message
 test_missing_ralph_script() {
@@ -843,6 +889,11 @@ test_unset_home() {
   EXIT_CODE=${EXIT_CODE:-$?}
   cd "$REPO_ROOT"
   
+  # Restore HOME immediately after test
+  if [ -n "$ORIGINAL_HOME" ]; then
+    export HOME="$ORIGINAL_HOME"
+  fi
+  
   if [ ${EXIT_CODE:-0} -eq 0 ]; then
     echo -e "${RED}FAIL${NC}: Script should exit with non-zero code when HOME is unset (got $EXIT_CODE)"
     cleanup_test_env
@@ -926,6 +977,11 @@ test_unset_path() {
   OUTPUT=$(echo "n" | bash "$TEST_DIR/install.sh" 2>&1) || EXIT_CODE=$?
   EXIT_CODE=${EXIT_CODE:-$?}
   cd "$REPO_ROOT"
+  
+  # Restore PATH immediately after test
+  if [ -n "$ORIGINAL_PATH" ]; then
+    export PATH="$ORIGINAL_PATH"
+  fi
   
   # Script should handle unset PATH gracefully (either succeed or provide clear error)
   if [ ${EXIT_CODE:-0} -eq 0 ]; then
@@ -1047,12 +1103,6 @@ run_tests() {
   local tests_passed=0
   local tests_failed=0
   
-  # Store original environment variables
-  ORIGINAL_HOME="${HOME:-}"
-  ORIGINAL_PATH="${PATH:-}"
-  ORIGINAL_OSTYPE="${OSTYPE:-}"
-  ORIGINAL_SHELL="${SHELL:-}"
-  
   if test_missing_ralph_script; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_permission_denied; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_missing_directories; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
@@ -1077,11 +1127,9 @@ run_tests() {
   if test_fish_shell_path_configuration; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_non_interactive_mode; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   
-  # Restore original environment variables
-  export HOME="${ORIGINAL_HOME}"
-  export PATH="${ORIGINAL_PATH}"
-  export OSTYPE="${ORIGINAL_OSTYPE}"
-  export SHELL="${ORIGINAL_SHELL}"
+  # Environment variables will be restored by the trap on exit
+  # Explicitly restore here as well to ensure they're correct even if tests continue
+  restore_env
   
   echo ""
   echo "========================================="
