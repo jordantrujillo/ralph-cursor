@@ -131,3 +131,19 @@ Started: 2026-01-18 12:02:33.930209
   - Exit with code 0 for graceful "not installed" case (not an error)
   - Update all relevant places when adding new commands: handle function, _print_available_commands, _suggest_command, print_help, and main() routing
 ---
+
+## 2026-01-18 - US-009
+- Implemented ralph version command
+- Files changed:
+  - bin/ralph.py: Added handle_version() function that reads version from VERSION file or git tag, displays in format "Ralph CLI vX.Y.Z", updated help text and command suggestions to include version, added support for both "ralph version" and "ralph --version" commands
+  - tests/cli_test.py: Added comprehensive tests for version command (displays version info, supports --version flag, help includes version)
+  - VERSION: Created version file with initial version 1.0.0
+- **Learnings for future iterations:**
+  - Followed TDD approach: wrote failing tests first (Red), implemented minimal code to pass (Green), then refactored
+  - Version can be read from VERSION file (preferred) or git tag (fallback), with default fallback to 1.0.0
+  - Use PACKAGE_ROOT to locate VERSION file relative to package root, not script location
+  - Handle both "version" command and "--version" flag in main() routing
+  - Version format should be consistent: "Ralph CLI vX.Y.Z" with 'v' prefix in display
+  - When reading from git, use subprocess.run() with timeout to avoid hanging
+  - Update all relevant places when adding new commands: handle function, _print_available_commands, _suggest_command, print_help, and main() routing
+---
