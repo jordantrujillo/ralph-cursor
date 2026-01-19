@@ -46,3 +46,22 @@ Started: 2026-01-18 12:02:33.930209
   - For fish shell, use `fish_add_path` instead of `export PATH` for better compatibility
   - When PATH is correctly configured, show success message with "Installation complete!" for test matching
 ---
+
+## 2026-01-18 - US-004
+- Completed comprehensive edge case analysis and fixed critical bugs
+- Files changed:
+  - install.sh: Fixed HOME validation, broken symlink detection, non-interactive shell support, fish shell PATH configuration, PATH variable validation
+  - scripts/ralph/ralph.py: Improved file operation error handling with UTF-8 encoding, better exception handling for archive operations and file I/O
+  - tests/test_install.sh: Added trap handler for cleanup on exit, improved environment variable restoration
+  - tasks/improve-install-script-and-cli/edge-case-analysis-phase-1.md: Created comprehensive edge case analysis document
+- **Learnings for future iterations:**
+  - Always validate environment variables (HOME, PATH) before using them in scripts
+  - Use `[ -t 0 ]` to detect interactive mode before prompting users
+  - Check for broken symlinks explicitly using `[ -L file ] && [ ! -e file ]`
+  - Use `fish_add_path` for fish shell instead of `export PATH` when automatically configuring PATH
+  - Add trap handlers in test scripts to ensure cleanup runs even on failures
+  - Use explicit UTF-8 encoding for all file operations in Python
+  - Handle PermissionError and OSError explicitly for file operations
+  - Document non-critical edge cases for future consideration rather than fixing everything immediately
+  - Edge case analysis should focus on critical bugs first, then document non-critical ones
+---
