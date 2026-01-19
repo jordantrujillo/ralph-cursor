@@ -1,0 +1,192 @@
+project: Ralph
+branchName: ralph/improve-install-script-and-cli
+description: Improve the Ralph install script and CLI to fix bugs, enhance reliability, and provide better user experience
+phases:
+  - phaseNumber: 1
+    branchName: ralph/improve-install-script-and-cli-phase-1
+    description: Improve the install script with better error handling, dependency detection, and PATH configuration guidance
+    userStories:
+      - id: US-001
+        title: Improve install script error handling and feedback
+        description: As a user, I want the install script to provide clear, actionable error messages and handle edge cases gracefully so that installation failures are easy to diagnose and fix.
+        acceptanceCriteria:
+          - Write failing test(s) first (TDD Red phase) - test error scenarios (missing bin/ralph.py, permission errors, etc.)
+          - Implement minimal code to pass tests (TDD Green phase) - improve error messages with specific guidance
+          - Refactor code while keeping tests passing (TDD Refactor phase)
+          - All error messages include actionable next steps
+          - "Handle edge cases: missing directories, permission denied, symlink failures"
+          - Provide clear success/failure indicators with colored output
+          - "Script exits with appropriate exit codes (0 for success, non-zero for errors)"
+          - Typecheck passes
+        priority: 1
+        passes: true
+        notes: 
+      - id: US-002
+        title: Improve install script dependency detection and installation
+        description: As a user, I want the install script to reliably detect and install dependencies with better feedback so that setup is smooth and predictable.
+        acceptanceCriteria:
+          - Write failing test(s) first (TDD Red phase) - test dependency detection and installation flows
+          - Implement minimal code to pass tests (TDD Green phase) - improve dependency handling
+          - Refactor code while keeping tests passing (TDD Refactor phase)
+          - Dependency detection works reliably on macOS and Linux
+          - Installation commands handle failures gracefully
+          - Clear progress indicators during dependency installation
+          - Better handling of unsupported platforms with helpful messages
+          - Verify dependencies after installation attempt
+          - Typecheck passes
+        priority: 2
+        passes: true
+        notes: 
+      - id: US-003
+        title: Improve install script PATH detection and guidance
+        description: As a user, I want the install script to accurately detect PATH issues and provide platform-specific guidance so that I can fix PATH configuration easily.
+        acceptanceCriteria:
+          - Write failing test(s) first (TDD Red phase) - test PATH detection for different shell configurations
+          - Implement minimal code to pass tests (TDD Green phase) - improve PATH detection logic
+          - Refactor code while keeping tests passing (TDD Refactor phase)
+          - Script detects current shell (bash, zsh, fish) and provides appropriate config file
+          - PATH detection works for both interactive and non-interactive shells
+          - Provides platform-specific instructions (macOS vs Linux)
+          - Offers to add PATH automatically if possible (with user confirmation)
+          - Clear instructions for manual PATH configuration
+          - Typecheck passes
+        priority: 3
+        passes: false
+        notes: 
+      - id: US-004
+        title: Code Review - Edge Case Analysis
+        description: As a code reviewer specialist, I want to review all changes in the branch for potential edge case bugs so that critical issues are fixed and non-critical ones are documented.
+        acceptanceCriteria:
+          - Review all code changes in the branch for edge cases
+          - Fix all critical edge case bugs found
+          - Document non-critical edge cases in markdown format
+          - Follow best practices for code review and edge case analysis
+          - Typecheck passes
+        priority: 4
+        passes: false
+        notes: 
+      - id: US-005
+        title: Security Review - Production Hardening
+        description: As a code security specialist, I want to review all code created/modified in the branch for security vulnerabilities so that the code is hardened for production use. I want to fix critical issues found, write a report on critical issues that were found/fixed. I don't want to fix the medium and minor issues, but we do want to document them.
+        acceptanceCriteria:
+          - Review all code created/modified in the branch for security vulnerabilities
+          - Identify and fix security issues (command injection, path traversal, etc.)
+          - Ensure proper input validation and sanitization
+          - Verify secure handling of user input and file operations
+          - Follow security best practices and OWASP guidelines
+          - Typecheck passes
+          - Security report is written/saved to "tasks/improve-install-script-and-cli/security-report-phase-1.md"
+        priority: 5
+        passes: false
+        notes: 
+      - id: US-006
+        title: Test Review - Quality Assurance
+        description: As a test-driven development specialist, I want to review all tests in the branch to ensure they follow TDD best practices, are comprehensive, not "cheated", and cover normal use cases and all known edge cases. And fix any issues found.
+        acceptanceCriteria:
+          - Verify TDD workflow was followed: tests were written BEFORE implementation code (Red-Green-Refactor cycle)
+          - Review all tests created/modified in the branch
+          - 'Verify tests are not "cheated" (no false positives, proper assertions), like skipping tests or deleting tests that are relevant to the changes, or writing tests that are not relevant to the changes'
+          - Ensure tests were written first and failed initially (Red phase), then implementation made them pass (Green phase)
+          - Verify no implementation code exists without corresponding tests
+          - Ensure tests cover normal use cases
+          - Ensure tests cover all known edge cases
+          - Verify test quality follows TDD best practices (tests define behavior, not just verify implementation)
+          - Confirm tests are maintainable and well-structured
+          - Typecheck passes
+        priority: 6
+        passes: false
+        notes: 
+  - phaseNumber: 2
+    branchName: ralph/improve-install-script-and-cli-phase-2
+    description: Enhance the CLI with better error handling and add essential missing commands (uninstall and version)
+    userStories:
+      - id: US-007
+        title: Improve CLI error handling and user feedback
+        description: As a user, I want the CLI to provide clear error messages and helpful feedback so that I understand what went wrong and how to fix it.
+        acceptanceCriteria:
+          - Write failing test(s) first (TDD Red phase) - test error scenarios (invalid commands, missing files, etc.)
+          - Implement minimal code to pass tests (TDD Green phase) - improve error messages throughout CLI
+          - Refactor code while keeping tests passing (TDD Refactor phase)
+          - All error messages are user-friendly and include context
+          - Invalid commands show helpful usage hints
+          - Missing dependencies or files provide clear guidance
+          - Success messages are clear and informative
+          - Typecheck passes
+        priority: 1
+        passes: false
+        notes: 
+      - id: US-008
+        title: Add ralph uninstall command
+        description: As a user, I want to uninstall Ralph from my system so that I can cleanly remove it when no longer needed.
+        acceptanceCriteria:
+          - Write failing test(s) first (TDD Red phase) - test uninstall command finds and removes installation
+          - Implement minimal code to pass tests (TDD Green phase) - add handle_uninstall() function
+          - Refactor code while keeping tests passing (TDD Refactor phase)
+          - '"ralph uninstall" command finds Ralph installation in PATH'
+          - Command removes symlink or file from install directory
+          - Command provides clear feedback about what was removed
+          - Command handles case where Ralph is not installed gracefully
+          - Command works on both macOS and Linux
+          - Help text includes uninstall command
+          - Typecheck passes
+        priority: 2
+        passes: false
+        notes: 
+      - id: US-009
+        title: Add ralph version command
+        description: As a user, I want to check the installed version of Ralph so that I can verify my installation and troubleshoot version-related issues.
+        acceptanceCriteria:
+          - Write failing test(s) first (TDD Red phase) - test version command outputs version info
+          - Implement minimal code to pass tests (TDD Green phase) - add version detection and display
+          - Refactor code while keeping tests passing (TDD Refactor phase)
+          - '"ralph version" or "ralph --version" displays version information'
+          - Version can be read from a version file or git tag
+          - 'Command shows version in format: "Ralph CLI vX.Y.Z"'
+          - Help text includes version command
+          - Typecheck passes
+        priority: 3
+        passes: false
+        notes: 
+      - id: US-010
+        title: Code Review - Edge Case Analysis
+        description: As a code reviewer specialist, I want to review all changes in the branch for potential edge case bugs so that critical issues are fixed and non-critical ones are documented.
+        acceptanceCriteria:
+          - Review all code changes in the branch for edge cases
+          - Fix all critical edge case bugs found
+          - Document non-critical edge cases in markdown format
+          - Follow best practices for code review and edge case analysis
+          - Typecheck passes
+        priority: 4
+        passes: false
+        notes: 
+      - id: US-011
+        title: Security Review - Production Hardening
+        description: As a code security specialist, I want to review all code created/modified in the branch for security vulnerabilities so that the code is hardened for production use. I want to fix critical issues found, write a report on critical issues that were found/fixed. I don't want to fix the medium and minor issues, but we do want to document them.
+        acceptanceCriteria:
+          - Review all code created/modified in the branch for security vulnerabilities
+          - Identify and fix security issues (command injection, path traversal, etc.)
+          - Ensure proper input validation and sanitization
+          - Verify secure handling of user input and file operations
+          - Follow security best practices and OWASP guidelines
+          - Typecheck passes
+          - Security report is written/saved to "tasks/improve-install-script-and-cli/security-report-phase-2.md"
+        priority: 5
+        passes: false
+        notes: 
+      - id: US-012
+        title: Test Review - Quality Assurance
+        description: As a test-driven development specialist, I want to review all tests in the branch to ensure they follow TDD best practices, are comprehensive, not "cheated", and cover normal use cases and all known edge cases. And fix any issues found.
+        acceptanceCriteria:
+          - Verify TDD workflow was followed: tests were written BEFORE implementation code (Red-Green-Refactor cycle)
+          - Review all tests created/modified in the branch
+          - 'Verify tests are not "cheated" (no false positives, proper assertions), like skipping tests or deleting tests that are relevant to the changes, or writing tests that are not relevant to the changes'
+          - Ensure tests were written first and failed initially (Red phase), then implementation made them pass (Green phase)
+          - Verify no implementation code exists without corresponding tests
+          - Ensure tests cover normal use cases
+          - Ensure tests cover all known edge cases
+          - Verify test quality follows TDD best practices (tests define behavior, not just verify implementation)
+          - Confirm tests are maintainable and well-structured
+          - Typecheck passes
+        priority: 6
+        passes: false
+        notes: 

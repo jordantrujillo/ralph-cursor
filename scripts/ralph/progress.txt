@@ -1,0 +1,32 @@
+# Ralph Progress Log
+Started: 2026-01-18 12:02:33.930209
+---
+
+## 2026-01-18 16:00:08 - US-001
+- Implemented improved error handling and feedback for install.sh
+- Files changed:
+  - install.sh: Enhanced error messages with actionable next steps, better handling of edge cases (missing directories, permission denied, symlink failures), clear success/failure indicators with colored output, proper exit codes
+  - tests/test_install.sh: Created comprehensive test suite following TDD (Red-Green-Refactor cycle)
+- **Learnings for future iterations:**
+  - Followed TDD approach: wrote failing tests first (Red), implemented minimal code to pass (Green), then refactored
+  - Error messages should always include "Next steps:" section with numbered, actionable items
+  - Use colored output (RED, GREEN, YELLOW) for clear visual feedback
+  - Always check exit codes explicitly in tests - use `|| EXIT_CODE=$?` pattern to capture exit codes properly
+  - When testing bash scripts, need to copy script to test directory to properly simulate scenarios where script location matters
+  - Use `bash -n script.sh` to verify syntax before committing
+---
+
+## 2026-01-18 - US-002
+- Implemented improved dependency detection and installation for install.sh
+- Files changed:
+  - install.sh: Enhanced dependency detection with better platform detection (macOS, Linux, unsupported), improved installation flow with progress indicators, dependency verification after installation, better error handling with actionable next steps, architecture detection for Linux (amd64, arm64)
+  - tests/test_install.sh: Added comprehensive tests for dependency detection (macOS/Linux), installation failure handling, progress indicators, unsupported platform handling, and dependency verification
+- **Learnings for future iterations:**
+  - Platform detection should check both `OSTYPE` patterns and use a centralized `DETECTED_PLATFORM` variable for consistency
+  - When installing dependencies, always verify they're available after installation (command -v check)
+  - Show progress indicators with numbered steps [1/N] for better UX during multi-dependency installation
+  - For unsupported platforms, provide multiple installation options (direct download, package managers, etc.)
+  - Architecture detection on Linux is important - use `uname -m` and map to appropriate binary names (x86_64 -> amd64, aarch64/arm64 -> arm64)
+  - After installation commands, add a small delay (sleep 1) before verifying PATH to allow system to update
+  - When installation fails, provide platform-specific troubleshooting steps (e.g., Homebrew check for macOS, sudo permissions for Linux)
+---
