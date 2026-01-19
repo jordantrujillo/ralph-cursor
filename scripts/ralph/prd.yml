@@ -130,7 +130,7 @@ phases:
           - Help text includes uninstall command
           - Typecheck passes
         priority: 2
-        passes: false
+        passes: true
         notes: 
       - id: US-009
         title: Add ralph version command

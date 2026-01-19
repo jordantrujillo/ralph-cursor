@@ -116,3 +116,18 @@ Started: 2026-01-18 12:02:33.930209
   - Use formatted output with separators and symbols (✓, ⊘) for better visual feedback
   - Test runner can be added to test files for easy execution without pytest
 ---
+
+## 2026-01-18 - US-008
+- Implemented ralph uninstall command
+- Files changed:
+  - bin/ralph.py: Added handle_uninstall() function that finds Ralph installation in PATH using shutil.which(), removes symlink or file, provides clear feedback, handles not-installed case gracefully, updated help text and command suggestions to include uninstall
+  - tests/cli_test.py: Added comprehensive tests for uninstall command (finds and removes symlink, finds and removes file, provides clear feedback, handles not installed gracefully, help includes uninstall)
+- **Learnings for future iterations:**
+  - Followed TDD approach: wrote failing tests first (Red), implemented minimal code to pass (Green), then refactored
+  - Use shutil.which() to find executables in PATH - it handles both symlinks and regular files
+  - When removing files, use Path.unlink() which works for both files and symlinks
+  - Store original path string before resolving to preserve user-visible path in output messages
+  - Handle PermissionError explicitly with helpful guidance (suggest sudo or manual removal)
+  - Exit with code 0 for graceful "not installed" case (not an error)
+  - Update all relevant places when adding new commands: handle function, _print_available_commands, _suggest_command, print_help, and main() routing
+---
