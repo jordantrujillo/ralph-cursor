@@ -3,12 +3,11 @@
 Ralph CLI - Autonomous AI agent loop installer and runner
 
 Commands:
-ralph init [--force] [--cursor-rules] [--cursor-cli]
+ralph init [--force] [--cursor-cli]
 ralph run [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
 
 Init options:
 --force: Overwrite existing files
---cursor-rules: Also install .cursor/rules/ralph-prd.mdc
 --cursor-cli: Also install .cursor/cli.json template
 
 Run options:
@@ -57,7 +56,6 @@ def handle_init(args):
     """Handle the 'init' command."""
     flags = parse_flags(args)
     force = flags.get('--force', False)
-    cursor_rules = flags.get('--cursor-rules', False)
     cursor_cli = flags.get('--cursor-cli', False)
 
     repo_root = Path.cwd()
@@ -119,58 +117,33 @@ def handle_init(args):
             print(f'  Source: {src_path}', file=sys.stderr)
             skipped.append(file_info['dest'])
 
-    # Copy skills from skills/ to .cursor/skills/
-    skills_src_dir = PACKAGE_ROOT / 'skills'
-    if skills_src_dir.exists():
-        cursor_skills_dir = repo_root / '.cursor' / 'skills'
-        for skill_dir in skills_src_dir.iterdir():
-            if skill_dir.is_dir():
-                skill_file = skill_dir / 'SKILL.md'
-                if skill_file.exists():
-                    dest_skill_dir = cursor_skills_dir / skill_dir.name
-                    dest_skill_file = dest_skill_dir / 'SKILL.md'
-                    
-                    # Create destination directory
-                    if not dest_skill_dir.exists():
-                        try:
-                            dest_skill_dir.mkdir(parents=True, exist_ok=True)
-                        except (PermissionError, OSError) as e:
-                            print(f'Warning: Failed to create directory {dest_skill_dir}: {e}', file=sys.stderr)
-                            continue
-                    
-                    # Check if file exists and handle force flag
-                    if dest_skill_file.exists() and not force:
-                        skipped.append(f'.cursor/skills/{skill_dir.name}/SKILL.md')
-                    else:
-                        try:
-                            shutil.copy2(skill_file, dest_skill_file)
-                            created.append(f'.cursor/skills/{skill_dir.name}/SKILL.md')
-                        except (PermissionError, OSError) as e:
-                            print(f'Warning: Failed to copy skill file {skill_dir.name}/SKILL.md: {e}', file=sys.stderr)
-                            skipped.append(f'.cursor/skills/{skill_dir.name}/SKILL.md')
-
-    # Optional: .cursor/rules/ralph-prd.mdc
-    if cursor_rules:
-        cursor_rules_dir = repo_root / '.cursor' / 'rules'
-        cursor_rules_file = cursor_rules_dir / 'ralph-prd.mdc'
-        if not cursor_rules_dir.exists():
-            try:
-                cursor_rules_dir.mkdir(parents=True, exist_ok=True)
-            except (PermissionError, OSError) as e:
-                print(f'Warning: Failed to create directory {cursor_rules_dir}: {e}', file=sys.stderr)
-                skipped.append('.cursor/rules/ralph-prd.mdc')
-            else:
-                if cursor_rules_file.exists() and not force:
-                    skipped.append('.cursor/rules/ralph-prd.mdc')
+    # Copy commands from .cursor/commands/ to .cursor/commands/
+    commands_src_dir = PACKAGE_ROOT / '.cursor' / 'commands'
+    if commands_src_dir.exists():
+        cursor_commands_dir = repo_root / '.cursor' / 'commands'
+        for command_file in commands_src_dir.iterdir():
+            if command_file.is_file() and command_file.suffix == '.md':
+                dest_command_file = cursor_commands_dir / command_file.name
+                
+                # Create destination directory
+                if not cursor_commands_dir.exists():
+                    try:
+                        cursor_commands_dir.mkdir(parents=True, exist_ok=True)
+                    except (PermissionError, OSError) as e:
+                        print(f'Warning: Failed to create directory {cursor_commands_dir}: {e}', file=sys.stderr)
+                        skipped.append(f'.cursor/commands/{command_file.name}')
+                        continue
+                
+                # Check if file exists and handle force flag
+                if dest_command_file.exists() and not force:
+                    skipped.append(f'.cursor/commands/{command_file.name}')
                 else:
-                    src_rules = PACKAGE_ROOT / '.cursor' / 'rules' / 'ralph-prd.mdc'
-                    if src_rules.exists():
-                        try:
-                            shutil.copy2(src_rules, cursor_rules_file)
-                            created.append('.cursor/rules/ralph-prd.mdc')
-                        except (PermissionError, OSError) as e:
-                            print(f'Warning: Failed to copy cursor rules file: {e}', file=sys.stderr)
-                            skipped.append('.cursor/rules/ralph-prd.mdc')
+                    try:
+                        shutil.copy2(command_file, dest_command_file)
+                        created.append(f'.cursor/commands/{command_file.name}')
+                    except (PermissionError, OSError) as e:
+                        print(f'Warning: Failed to copy command file {command_file.name}: {e}', file=sys.stderr)
+                        skipped.append(f'.cursor/commands/{command_file.name}')
 
     # Optional: .cursor/cli.json
     if cursor_cli:
@@ -453,11 +426,10 @@ Commands:
   version           Display version information
 
 Init:
-  ralph init [--force] [--cursor-rules] [--cursor-cli]
+  ralph init [--force] [--cursor-cli]
   
   Options:
     --force         Overwrite existing files
-    --cursor-rules  Also install .cursor/rules/ralph-prd.mdc
     --cursor-cli    Also install .cursor/cli.json template
 
 Run:
@@ -487,7 +459,7 @@ The run command executes scripts/ralph/ralph.py which uses Cursor CLI as the wor
 
 Examples:
   ralph init
-  ralph init --force --cursor-rules --cursor-cli
+  ralph init --force --cursor-cli
   ralph run
   ralph run 20
   ralph run 10 --cursor-timeout 3600 --model claude-3.5-sonnet
