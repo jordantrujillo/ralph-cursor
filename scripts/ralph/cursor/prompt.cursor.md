@@ -19,11 +19,11 @@ Autonomous coding agent. Use Cursor.
 5. Pick highest priority story from current phase where `passes: false`
 6. Implement that story
 7. Run quality checks (typecheck, lint, test)
-8. Update AGENTS.md if reusable patterns found (see below)
-9. If checks pass: 
+8. Update Cursor rules if reusable patterns found (see below)
+9. Append progress to `progress.txt` (pass or fail)
+10. If checks pass: 
    - Set story `passes: true` in PRD
-   - Append progress to `progress.txt`
-   - Commit ALL with `feat: [Story ID] - [Story Title]`, attempt to push to remote branch, do not try again if fails.
+   - Commit and push ALL with `feat: [Story ID] - [Story Title]`
 
 ## Progress Format
 
@@ -54,31 +54,58 @@ Reusable pattern found? Add to `## Codebase Patterns` at TOP of progress.txt (cr
 
 Only general/reusable patterns, not story-specific.
 
-## Update AGENTS.md
+## Update Cursor Rules
 
 Before commit, check edited files for learnings:
 
 1. Find directories with edited files
-2. Check for AGENTS.md in those/parent directories
-3. Add valuable learnings:
+2. Check for `.cursor/rules/*.mdc` files in those/parent directories
+3. If no rule file exists for that area, create one:
+   - Create `.cursor/rules/[area-name].mdc` (e.g., `api.mdc`, `ui-components.mdc`, `database.mdc`)
+   - Use appropriate `globs` in frontmatter to scope the rule (e.g., `["**/api/**", "**/routes/**"]` for API rules)
+   - Set `alwaysApply: false` if rule should only apply when files match globs, `alwaysApply: true` for project-wide rules
+4. Add valuable learnings as concise rules:
    - API patterns/conventions for that module
    - Gotchas/non-obvious requirements
    - File dependencies
    - Testing approaches
    - Config/env requirements
 
-**Good AGENTS.md additions:**
+**Cursor Rule Format:**
+```markdown
+---
+description: "Rules for [module/area]"
+globs:
+  - "**/api/**"
+  - "**/routes/**"
+alwaysApply: false
+---
+
+- Modifying X requires updating Y
+- Module uses pattern Z for API calls
+- Tests need dev server on PORT 3000
+- Field names must match template exactly
+```
+
+**Good Cursor rule additions:**
 - "Modifying X requires updating Y"
 - "Module uses pattern Z for API calls"
 - "Tests need dev server on PORT 3000"
 - "Field names must match template exactly"
+- "Always use parameterized queries for database operations"
 
 **Don't add:**
 - Story-specific details
 - Temporary debug notes
 - Info already in progress.txt
+- Vague or non-actionable statements
 
-Only update if genuinely reusable knowledge for future work.
+**Rule scoping:**
+- Project-wide patterns: Use `.cursor/rules/project.mdc` with `alwaysApply: true` and `globs: ["**/*"]`
+- Directory-specific: Use appropriate globs (e.g., `["**/backend/**"]` for backend rules)
+- File-type specific: Use file extensions in globs (e.g., `["**/*.sql"]` for SQL rules)
+
+Only update if genuinely reusable knowledge for future work. If a rule conflicts with a task requirement, remove or update the conflicting rule.
 
 ## Quality
 
