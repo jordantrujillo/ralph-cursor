@@ -315,6 +315,147 @@ def test_ralph_no_command_shows_usage():
         shutil.rmtree(test_dir, ignore_errors=True)
 
 
+def test_ralph_uninstall_finds_and_removes_symlink():
+    """Test that ralph uninstall finds and removes symlink installation."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Create a fake install directory
+        install_dir = Path(test_dir) / 'bin'
+        install_dir.mkdir(parents=True, exist_ok=True)
+        install_path = install_dir / 'ralph'
+        
+        # Create a symlink to simulate installation
+        ralph_script = Path(test_dir) / 'bin' / 'ralph.py'
+        ralph_script.parent.mkdir(parents=True, exist_ok=True)
+        ralph_script.write_text('#!/usr/bin/env python3\nprint("ralph")\n')
+        ralph_script.chmod(0o755)
+        
+        # Create symlink
+        install_path.symlink_to(ralph_script)
+        
+        # Run uninstall with modified PATH
+        env = os.environ.copy()
+        env['PATH'] = f"{install_dir}:{env.get('PATH', '')}"
+        result = subprocess.run(
+            ['python3', str(CLI_PATH), 'uninstall'],
+            cwd=str(test_dir),
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        
+        assert result.returncode == 0, f"Expected exit code 0, got {result.returncode}. stderr: {result.stderr}"
+        assert not install_path.exists(), 'Symlink should be removed'
+        assert 'removed' in result.stdout.lower() or 'uninstalled' in result.stdout.lower(), \
+            'Should indicate removal'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_uninstall_finds_and_removes_file():
+    """Test that ralph uninstall finds and removes file installation."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Create a fake install directory
+        install_dir = Path(test_dir) / 'bin'
+        install_dir.mkdir(parents=True, exist_ok=True)
+        install_path = install_dir / 'ralph'
+        
+        # Create a file (not symlink) to simulate installation
+        install_path.write_text('#!/usr/bin/env python3\nprint("ralph")\n')
+        install_path.chmod(0o755)
+        
+        # Run uninstall with modified PATH
+        env = os.environ.copy()
+        env['PATH'] = f"{install_dir}:{env.get('PATH', '')}"
+        result = subprocess.run(
+            ['python3', str(CLI_PATH), 'uninstall'],
+            cwd=str(test_dir),
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        
+        assert result.returncode == 0, f"Expected exit code 0, got {result.returncode}. stderr: {result.stderr}"
+        assert not install_path.exists(), 'File should be removed'
+        assert 'removed' in result.stdout.lower() or 'uninstalled' in result.stdout.lower(), \
+            'Should indicate removal'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_uninstall_provides_clear_feedback():
+    """Test that ralph uninstall provides clear feedback about what was removed."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Create a fake install directory
+        install_dir = Path(test_dir) / 'bin'
+        install_dir.mkdir(parents=True, exist_ok=True)
+        install_path = install_dir / 'ralph'
+        
+        # Create a symlink
+        ralph_script = Path(test_dir) / 'bin' / 'ralph.py'
+        ralph_script.parent.mkdir(parents=True, exist_ok=True)
+        ralph_script.write_text('#!/usr/bin/env python3\nprint("ralph")\n')
+        ralph_script.chmod(0o755)
+        install_path.symlink_to(ralph_script)
+        
+        # Run uninstall with modified PATH
+        env = os.environ.copy()
+        env['PATH'] = f"{install_dir}:{env.get('PATH', '')}"
+        result = subprocess.run(
+            ['python3', str(CLI_PATH), 'uninstall'],
+            cwd=str(test_dir),
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        
+        assert result.returncode == 0
+        # Should mention what was removed
+        assert str(install_path) in result.stdout or 'ralph' in result.stdout.lower(), \
+            'Should mention what was removed'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_uninstall_handles_not_installed_gracefully():
+    """Test that ralph uninstall handles case where Ralph is not installed gracefully."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Create a fake install directory (but no ralph binary)
+        install_dir = Path(test_dir) / 'bin'
+        install_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Run uninstall with modified PATH (ralph not in PATH)
+        env = os.environ.copy()
+        env['PATH'] = f"{install_dir}:{env.get('PATH', '')}"
+        result = subprocess.run(
+            ['python3', str(CLI_PATH), 'uninstall'],
+            cwd=str(test_dir),
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        
+        # Should exit with 0 (graceful) or non-zero but with helpful message
+        assert result.returncode == 0 or 'not installed' in result.stdout.lower() or 'not found' in result.stdout.lower(), \
+            'Should handle not installed case gracefully'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_help_includes_uninstall():
+    """Test that help text includes uninstall command."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['--help'], test_dir)
+        assert result['code'] == 0
+        assert 'uninstall' in result['stdout'].lower(), 'Help should include uninstall command'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
 if __name__ == '__main__':
     import sys
     # Simple test runner

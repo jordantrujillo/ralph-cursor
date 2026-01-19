@@ -229,11 +229,56 @@ def handle_run(args):
     sys.exit(result.returncode)
 
 
+def handle_uninstall(args):
+    """
+    Handle the 'uninstall' command.
+    
+    Finds Ralph installation in PATH and removes it.
+    """
+    # Find ralph in PATH
+    ralph_path_str = shutil.which('ralph')
+    
+    if not ralph_path_str:
+        print('Ralph is not installed in your PATH.', file=sys.stdout)
+        print('', file=sys.stdout)
+        print('If you installed Ralph manually, you may need to remove it yourself.', file=sys.stdout)
+        sys.exit(0)
+    
+    ralph_path = Path(ralph_path_str).resolve()
+    
+    # Check if it exists
+    if not ralph_path.exists():
+        print('Ralph installation found but file does not exist:', file=sys.stdout)
+        print(f'  {ralph_path_str}', file=sys.stdout)
+        print('', file=sys.stdout)
+        print('The installation may have already been removed.', file=sys.stdout)
+        sys.exit(0)
+    
+    # Remove the file or symlink
+    try:
+        ralph_path.unlink()
+        print('✓ Removed Ralph installation:', file=sys.stdout)
+        print(f'  {ralph_path_str}', file=sys.stdout)
+    except PermissionError:
+        print('Error: Permission denied when trying to remove:', file=sys.stderr)
+        print(f'  {ralph_path_str}', file=sys.stderr)
+        print('', file=sys.stderr)
+        print('Next steps:', file=sys.stderr)
+        print('  1. Try running with sudo: sudo ralph uninstall', file=sys.stderr)
+        print('  2. Or manually remove: rm', ralph_path_str, file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f'Error: Failed to remove installation: {e}', file=sys.stderr)
+        print(f'  {ralph_path_str}', file=sys.stderr)
+        sys.exit(1)
+
+
 def _print_available_commands():
     """Print available commands list."""
     print('Available commands:', file=sys.stderr)
-    print('  init    Initialize Ralph in the current repository', file=sys.stderr)
-    print('  run     Run Ralph agent loop', file=sys.stderr)
+    print('  init       Initialize Ralph in the current repository', file=sys.stderr)
+    print('  run        Run Ralph agent loop', file=sys.stderr)
+    print('  uninstall   Uninstall Ralph from your system', file=sys.stderr)
 
 
 def _suggest_command(command):
@@ -242,9 +287,12 @@ def _suggest_command(command):
         print('  Try: ralph init', file=sys.stderr)
     elif 'run' in command.lower() or 'r' in command.lower():
         print('  Try: ralph run', file=sys.stderr)
+    elif 'uninstall' in command.lower() or 'u' in command.lower():
+        print('  Try: ralph uninstall', file=sys.stderr)
     else:
         print('  Try: ralph init  (to set up Ralph)', file=sys.stderr)
         print('  Try: ralph run   (to run the agent loop)', file=sys.stderr)
+        print('  Try: ralph uninstall  (to remove Ralph)', file=sys.stderr)
 
 
 def print_help():
@@ -254,6 +302,7 @@ def print_help():
 Commands:
   init              Initialize Ralph in the current repository
   run               Run Ralph agent loop
+  uninstall         Uninstall Ralph from your system
 
 Init:
   ralph init [--force] [--cursor-rules] [--cursor-cli]
@@ -275,6 +324,11 @@ Run:
     --model MODEL            Model to use for cursor worker 
                               (default: 'auto', from RALPH_MODEL env)
 
+Uninstall:
+  ralph uninstall
+  
+  Removes Ralph installation from your PATH.
+
 The run command executes scripts/ralph/ralph.py which uses Cursor CLI as the worker.
 
 Examples:
@@ -283,6 +337,7 @@ Examples:
   ralph run
   ralph run 20
   ralph run 10 --cursor-timeout 3600 --model claude-3.5-sonnet
+  ralph uninstall
 """
     print(help_text)
 
@@ -311,6 +366,8 @@ def main():
         handle_init(args)
     elif command == 'run':
         handle_run(args)
+    elif command == 'uninstall':
+        handle_uninstall(args)
     else:
         print(f'Error: Unknown command "{command}".', file=sys.stderr)
         print('', file=sys.stderr)
