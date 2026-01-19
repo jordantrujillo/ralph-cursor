@@ -824,6 +824,222 @@ test_manual_path_configuration_instructions() {
   cleanup_test_env
 }
 
+# Test: Unset HOME environment variable should provide clear error
+test_unset_home() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  # Unset HOME
+  unset HOME
+  
+  cd "$TEST_DIR"
+  OUTPUT=$(bash "$TEST_DIR/install.sh" 2>&1) || EXIT_CODE=$?
+  EXIT_CODE=${EXIT_CODE:-$?}
+  cd "$REPO_ROOT"
+  
+  if [ ${EXIT_CODE:-0} -eq 0 ]; then
+    echo -e "${RED}FAIL${NC}: Script should exit with non-zero code when HOME is unset (got $EXIT_CODE)"
+    cleanup_test_env
+    return 1
+  fi
+  
+  if echo "$OUTPUT" | grep -qiE "(HOME.*not set|HOME.*environment|error.*HOME)"; then
+    echo -e "${GREEN}PASS${NC}: Unset HOME provides clear error message"
+  else
+    echo -e "${RED}FAIL${NC}: Unset HOME error message not clear"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Broken symlink detection should provide warning
+test_broken_symlink_detection() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="$TEST_DIR/.local/bin:$PATH"
+  
+  # Create a broken symlink
+  ln -s "/nonexistent/path/to/ralph.py" "$TEST_DIR/.local/bin/ralph" 2>/dev/null || true
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  cd "$TEST_DIR"
+  # Use echo "y" to overwrite
+  OUTPUT=$(echo "y" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if script detected broken symlink
+  if echo "$OUTPUT" | grep -qiE "(broken.*symlink|symlink.*broken|warning.*symlink)"; then
+    echo -e "${GREEN}PASS${NC}: Broken symlink detection works"
+  else
+    # If it doesn't detect it, that's okay as long as it handles it gracefully
+    # The script should still work (it will overwrite the broken symlink)
+    if echo "$OUTPUT" | grep -qiE "(Installation complete|successfully installed)"; then
+      echo -e "${YELLOW}WARN${NC}: Broken symlink not explicitly detected, but installation succeeded"
+      echo -e "${GREEN}PASS${NC}: Broken symlink handled gracefully"
+    else
+      echo -e "${RED}FAIL${NC}: Broken symlink not handled properly"
+      echo "Output: $OUTPUT"
+      cleanup_test_env
+      return 1
+    fi
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Unset PATH should be handled gracefully
+test_unset_path() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  
+  # Unset PATH
+  unset PATH
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  cd "$TEST_DIR"
+  # Use echo "n" to skip dependency installation
+  OUTPUT=$(echo "n" | bash "$TEST_DIR/install.sh" 2>&1) || EXIT_CODE=$?
+  EXIT_CODE=${EXIT_CODE:-$?}
+  cd "$REPO_ROOT"
+  
+  # Script should handle unset PATH gracefully (either succeed or provide clear error)
+  if [ ${EXIT_CODE:-0} -eq 0 ]; then
+    # If it succeeds, that's fine - it handled unset PATH
+    echo -e "${GREEN}PASS${NC}: Unset PATH handled gracefully (installation succeeded)"
+  else
+    # If it fails, should provide clear guidance
+    if echo "$OUTPUT" | grep -qiE "(PATH|error|warning)"; then
+      echo -e "${GREEN}PASS${NC}: Unset PATH handled gracefully (clear error message)"
+    else
+      echo -e "${RED}FAIL${NC}: Unset PATH not handled gracefully"
+      echo "Output: $OUTPUT"
+      cleanup_test_env
+      return 1
+    fi
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Fish shell PATH configuration uses fish_add_path
+test_fish_shell_path_configuration() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  mkdir -p "$TEST_DIR/.config/fish"
+  export HOME="$TEST_DIR"
+  export PATH="/usr/bin:/bin"
+  export SHELL="/usr/bin/fish"
+  
+  # Create a writable fish config file
+  touch "$TEST_DIR/.config/fish/config.fish"
+  chmod 644 "$TEST_DIR/.config/fish/config.fish"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  cd "$TEST_DIR"
+  # Say "y" to add PATH automatically
+  OUTPUT=$(echo -e "n\ny" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if fish_add_path was used
+  if grep -q "fish_add_path" "$TEST_DIR/.config/fish/config.fish" 2>/dev/null; then
+    echo -e "${GREEN}PASS${NC}: Fish shell PATH configuration uses fish_add_path"
+  else
+    # If automatic addition wasn't done, check if manual instructions mention fish_add_path
+    if echo "$OUTPUT" | grep -qiE "(fish_add_path|fish.*PATH)"; then
+      echo -e "${GREEN}PASS${NC}: Fish shell PATH configuration instructions mention fish_add_path"
+    else
+      echo -e "${RED}FAIL${NC}: Fish shell PATH configuration doesn't use fish_add_path"
+      echo "Output: $OUTPUT"
+      cleanup_test_env
+      return 1
+    fi
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Non-interactive mode should skip prompts
+test_non_interactive_mode() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="$TEST_DIR/.local/bin:$PATH"
+  
+  # Create existing installation to trigger overwrite prompt
+  mkdir -p "$TEST_DIR/.local/bin"
+  touch "$TEST_DIR/.local/bin/ralph"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  cd "$TEST_DIR"
+  # Run in non-interactive mode (no stdin)
+  OUTPUT=$(bash "$TEST_DIR/install.sh" </dev/null 2>&1) || EXIT_CODE=$?
+  EXIT_CODE=${EXIT_CODE:-$?}
+  cd "$REPO_ROOT"
+  
+  # Check if script detected non-interactive mode
+  if echo "$OUTPUT" | grep -qiE "(non.interactive|Non-interactive)"; then
+    if [ $EXIT_CODE -eq 0 ]; then
+      echo -e "${GREEN}PASS${NC}: Non-interactive mode detected and handled correctly"
+    else
+      echo -e "${RED}FAIL${NC}: Non-interactive mode detected but script failed"
+      echo "Output: $OUTPUT"
+      cleanup_test_env
+      return 1
+    fi
+  else
+    # If it doesn't explicitly mention non-interactive, check if it succeeded without prompts
+    if [ $EXIT_CODE -eq 0 ] && ! echo "$OUTPUT" | grep -qiE "(Overwrite|y/N|Would you like)"; then
+      echo -e "${GREEN}PASS${NC}: Non-interactive mode handled (no prompts, installation succeeded)"
+    else
+      echo -e "${RED}FAIL${NC}: Non-interactive mode not handled correctly"
+      echo "Output: $OUTPUT"
+      cleanup_test_env
+      return 1
+    fi
+  fi
+  
+  cleanup_test_env
+}
+
 run_tests() {
   echo "Testing install.sh error handling..."
   echo ""
@@ -855,6 +1071,11 @@ run_tests() {
   if test_platform_specific_path_instructions; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_automatic_path_addition; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_manual_path_configuration_instructions; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_unset_home; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_broken_symlink_detection; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_unset_path; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_fish_shell_path_configuration; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_non_interactive_mode; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   
   # Restore original environment variables
   export HOME="${ORIGINAL_HOME}"

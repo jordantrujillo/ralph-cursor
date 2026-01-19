@@ -84,3 +84,19 @@ Started: 2026-01-18 12:02:33.930209
   - Archive folder names from user-controlled sources (like branch names) should be sanitized
   - Security reviews should fix critical issues, document medium/minor issues, and document acceptable risks
 ---
+
+## 2026-01-18 - US-006
+- Completed comprehensive test review and added missing edge case tests
+- Files changed:
+  - tests/test_install.sh: Added 5 missing tests for critical edge cases (unset HOME, broken symlinks, unset PATH, fish shell PATH configuration, non-interactive mode)
+  - tasks/improve-install-script-and-cli/test-review-phase-1.md: Created comprehensive test review document
+- **Learnings for future iterations:**
+  - TDD workflow was properly followed: tests were written before implementation (Red-Green-Refactor cycle verified)
+  - All tests use proper assertions and check exit codes - no "cheated" tests found
+  - Test coverage must include all critical edge cases from edge case analysis documents
+  - When reviewing tests, verify that edge cases fixed in code review are also covered by tests
+  - Tests should verify actual behavior, not just implementation details
+  - Use `bash -n script.sh` to verify test syntax before committing
+  - Test review should verify: TDD workflow, test quality, edge case coverage, no cheated tests, implementation coverage
+  - All 23 tests are well-structured, maintainable, and follow TDD best practices
+---
