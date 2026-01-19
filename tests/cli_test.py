@@ -456,6 +456,41 @@ def test_ralph_help_includes_uninstall():
         shutil.rmtree(test_dir, ignore_errors=True)
 
 
+def test_ralph_version_displays_version_info():
+    """Test that ralph version displays version information."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['version'], test_dir)
+        assert result['code'] == 0, f"Expected exit code 0, got {result['code']}. stderr: {result['stderr']}"
+        # Should show version in format "Ralph CLI vX.Y.Z"
+        assert 'ralph cli v' in result['stdout'].lower(), 'Should display version in correct format'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_version_flag_displays_version_info():
+    """Test that ralph --version displays version information."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['--version'], test_dir)
+        assert result['code'] == 0, f"Expected exit code 0, got {result['code']}. stderr: {result['stderr']}"
+        # Should show version in format "Ralph CLI vX.Y.Z"
+        assert 'ralph cli v' in result['stdout'].lower(), 'Should display version in correct format'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_help_includes_version():
+    """Test that help text includes version command."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['--help'], test_dir)
+        assert result['code'] == 0
+        assert 'version' in result['stdout'].lower(), 'Help should include version command'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
 if __name__ == '__main__':
     import sys
     # Simple test runner

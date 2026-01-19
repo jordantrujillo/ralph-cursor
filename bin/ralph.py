@@ -273,12 +273,38 @@ def handle_uninstall(args):
         sys.exit(1)
 
 
+def handle_version(args):
+    """
+    Handle the 'version' command.
+    
+    Displays version information from VERSION file or git tag.
+    """
+    version = None
+    version_file = PACKAGE_ROOT / 'VERSION'
+    if version_file.exists():
+        try:
+            version = version_file.read_text().strip()
+        except Exception:
+            pass
+    if not version:
+        try:
+            result = subprocess.run(['git', 'describe', '--tags', '--always'], cwd=str(PACKAGE_ROOT), capture_output=True, text=True, timeout=2)
+            if result.returncode == 0:
+                version = result.stdout.strip()
+        except Exception:
+            pass
+    if not version:
+        version = '1.0.0'
+    version_clean = version.lstrip('v')
+    print(f'Ralph CLI v{version_clean}')
+
 def _print_available_commands():
     """Print available commands list."""
     print('Available commands:', file=sys.stderr)
     print('  init       Initialize Ralph in the current repository', file=sys.stderr)
     print('  run        Run Ralph agent loop', file=sys.stderr)
     print('  uninstall   Uninstall Ralph from your system', file=sys.stderr)
+    print('  version    Display version information', file=sys.stderr)
 
 
 def _suggest_command(command):
@@ -289,10 +315,13 @@ def _suggest_command(command):
         print('  Try: ralph run', file=sys.stderr)
     elif 'uninstall' in command.lower() or 'u' in command.lower():
         print('  Try: ralph uninstall', file=sys.stderr)
+    elif 'version' in command.lower() or 'v' in command.lower():
+        print('  Try: ralph version', file=sys.stderr)
     else:
         print('  Try: ralph init  (to set up Ralph)', file=sys.stderr)
         print('  Try: ralph run   (to run the agent loop)', file=sys.stderr)
         print('  Try: ralph uninstall  (to remove Ralph)', file=sys.stderr)
+        print('  Try: ralph version  (to check version)', file=sys.stderr)
 
 
 def print_help():
@@ -303,6 +332,7 @@ Commands:
   init              Initialize Ralph in the current repository
   run               Run Ralph agent loop
   uninstall         Uninstall Ralph from your system
+  version           Display version information
 
 Init:
   ralph init [--force] [--cursor-rules] [--cursor-cli]
@@ -328,6 +358,12 @@ Uninstall:
   ralph uninstall
   
   Removes Ralph installation from your PATH.
+
+Version:
+  ralph version
+  ralph --version
+  
+  Displays the installed version of Ralph CLI.
 
 The run command executes scripts/ralph/ralph.py which uses Cursor CLI as the worker.
 
@@ -357,9 +393,13 @@ def main():
     command = sys.argv[1]
     args = sys.argv[2:]
 
-    # Handle help flags
+    # Handle help and version flags
     if command in ('-h', '--help'):
         print_help()
+        sys.exit(0)
+    
+    if command in ('-v', '--version'):
+        handle_version(args)
         sys.exit(0)
 
     if command == 'init':
@@ -368,6 +408,8 @@ def main():
         handle_run(args)
     elif command == 'uninstall':
         handle_uninstall(args)
+    elif command == 'version':
+        handle_version(args)
     else:
         print(f'Error: Unknown command "{command}".', file=sys.stderr)
         print('', file=sys.stderr)
