@@ -18,23 +18,42 @@ INSTALL_NAME="ralph"
 # Check if ralph.py exists
 if [ ! -f "$RALPH_SCRIPT" ]; then
     echo -e "${RED}Error: $RALPH_SCRIPT not found${NC}" >&2
+    echo "" >&2
+    echo "Next steps:" >&2
+    echo "  1. Ensure you're running this script from the Ralph project root directory" >&2
+    echo "  2. Verify that bin/ralph.py exists in the project" >&2
+    echo "  3. If the file is missing, check your git repository or re-download the project" >&2
     exit 1
 fi
 
 # Determine install location
 # Prefer ~/.local/bin for user installs, fall back to /usr/local/bin for system installs
-if [ -w "$HOME/.local/bin" ] || mkdir -p "$HOME/.local/bin" 2>/dev/null; then
+INSTALL_DIR=""
+USE_SYMLINK=true
+
+# Try to use ~/.local/bin first
+if [ -w "$HOME/.local/bin" ] 2>/dev/null; then
     INSTALL_DIR="$HOME/.local/bin"
-    USE_SYMLINK=true
-elif [ -w "/usr/local/bin" ]; then
+elif mkdir -p "$HOME/.local/bin" 2>/dev/null && [ -w "$HOME/.local/bin" ] 2>/dev/null; then
+    INSTALL_DIR="$HOME/.local/bin"
+elif [ -w "/usr/local/bin" ] 2>/dev/null; then
     INSTALL_DIR="/usr/local/bin"
-    USE_SYMLINK=true
 else
-    echo -e "${RED}Error: No writable directory found. Tried:${NC}" >&2
+    echo -e "${RED}Error: No writable installation directory found${NC}" >&2
+    echo "" >&2
+    echo "Tried the following directories:" >&2
     echo "  - $HOME/.local/bin" >&2
     echo "  - /usr/local/bin" >&2
     echo "" >&2
-    echo "Please create one of these directories or run with sudo for system-wide install." >&2
+    echo "Next steps:" >&2
+    echo "  1. Create ~/.local/bin directory: mkdir -p ~/.local/bin" >&2
+    echo "  2. Or run with sudo for system-wide install: sudo $0" >&2
+    echo "  3. Or manually set permissions on one of the directories above" >&2
+    echo "" >&2
+    echo "If you see 'Permission denied', you may need to:" >&2
+    echo "  - Check directory permissions: ls -ld ~/.local/bin" >&2
+    echo "  - Fix permissions: chmod 755 ~/.local/bin" >&2
+    echo "  - Or use sudo for system-wide installation" >&2
     exit 1
 fi
 
@@ -56,17 +75,53 @@ fi
 echo "Installing Ralph CLI..."
 if [ "$USE_SYMLINK" = true ]; then
     # Create symlink to preserve updates
-    ln -s "$RALPH_SCRIPT" "$INSTALL_PATH"
-    echo -e "${GREEN}Created symlink: $INSTALL_PATH -> $RALPH_SCRIPT${NC}"
+    if ! ln -s "$RALPH_SCRIPT" "$INSTALL_PATH" 2>/dev/null; then
+        echo -e "${RED}Error: Failed to create symlink${NC}" >&2
+        echo "" >&2
+        echo "Details:" >&2
+        echo "  Source: $RALPH_SCRIPT" >&2
+        echo "  Target: $INSTALL_PATH" >&2
+        echo "" >&2
+        echo "Next steps:" >&2
+        echo "  1. Check if target already exists: ls -l $INSTALL_PATH" >&2
+        echo "  2. Remove existing file/symlink if needed: rm $INSTALL_PATH" >&2
+        echo "  3. Check directory permissions: ls -ld $(dirname "$INSTALL_PATH")" >&2
+        echo "  4. Ensure you have write permissions to the install directory" >&2
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Created symlink: $INSTALL_PATH -> $RALPH_SCRIPT${NC}"
 else
     # Copy the file
-    cp "$RALPH_SCRIPT" "$INSTALL_PATH"
-    echo -e "${GREEN}Copied to: $INSTALL_PATH${NC}"
+    if ! cp "$RALPH_SCRIPT" "$INSTALL_PATH" 2>/dev/null; then
+        echo -e "${RED}Error: Failed to copy file${NC}" >&2
+        echo "" >&2
+        echo "Details:" >&2
+        echo "  Source: $RALPH_SCRIPT" >&2
+        echo "  Target: $INSTALL_PATH" >&2
+        echo "" >&2
+        echo "Next steps:" >&2
+        echo "  1. Check if target directory is writable: ls -ld $(dirname "$INSTALL_PATH")" >&2
+        echo "  2. Check disk space: df -h $(dirname "$INSTALL_PATH")" >&2
+        echo "  3. Try running with sudo: sudo $0" >&2
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Copied to: $INSTALL_PATH${NC}"
 fi
 
 # Make executable
-chmod +x "$INSTALL_PATH"
-echo -e "${GREEN}Made executable${NC}"
+if ! chmod +x "$INSTALL_PATH" 2>/dev/null; then
+    echo -e "${RED}Error: Failed to make file executable${NC}" >&2
+    echo "" >&2
+    echo "Details:" >&2
+    echo "  File: $INSTALL_PATH" >&2
+    echo "" >&2
+    echo "Next steps:" >&2
+    echo "  1. Check file permissions: ls -l $INSTALL_PATH" >&2
+    echo "  2. Try manually: chmod +x $INSTALL_PATH" >&2
+    echo "  3. If that fails, you may need sudo: sudo chmod +x $INSTALL_PATH" >&2
+    exit 1
+fi
+echo -e "${GREEN}✓ Made executable${NC}"
 
 # Check and install dependencies
 echo ""
@@ -143,13 +198,21 @@ else
     echo ""
     echo -e "${GREEN}✓ Installation complete!${NC}"
     echo ""
-    echo "You can now run: $INSTALL_NAME init"
-    echo "              or: $INSTALL_NAME run"
+    echo "Ralph CLI has been successfully installed to: $INSTALL_PATH"
+    echo ""
+    echo "You can now run:"
+    echo "  $INSTALL_NAME init"
+    echo "  $INSTALL_NAME run"
     echo ""
     
     # Test if it works
     if command -v "$INSTALL_NAME" >/dev/null 2>&1; then
         echo "Testing installation..."
-        "$INSTALL_NAME" --help 2>/dev/null || "$INSTALL_NAME" 2>/dev/null || true
+        if "$INSTALL_NAME" --help >/dev/null 2>&1 || "$INSTALL_NAME" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ Installation verified - Ralph CLI is working!${NC}"
+        else
+            echo -e "${YELLOW}⚠ Installation complete, but verification test failed${NC}"
+            echo "  You may need to restart your terminal or run: source ~/.bashrc"
+        fi
     fi
 fi
