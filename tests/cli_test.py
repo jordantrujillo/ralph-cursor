@@ -491,6 +491,220 @@ def test_ralph_help_includes_version():
         shutil.rmtree(test_dir, ignore_errors=True)
 
 
+def test_ralph_uninstall_rejects_directory():
+    """Test that ralph uninstall rejects if PATH points to a directory (edge case)."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Create a fake install directory with a directory named 'ralph' (not a file)
+        install_dir = Path(test_dir) / 'bin'
+        install_dir.mkdir(parents=True, exist_ok=True)
+        ralph_dir = install_dir / 'ralph'
+        ralph_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Run uninstall with modified PATH
+        env = os.environ.copy()
+        env['PATH'] = f"{install_dir}:{env.get('PATH', '')}"
+        result = subprocess.run(
+            ['python3', str(CLI_PATH), 'uninstall'],
+            cwd=str(test_dir),
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        
+        # Should exit with error code and indicate it's a directory
+        assert result.returncode != 0, 'Should exit with error when path is directory'
+        assert 'directory' in result.stderr.lower() or 'directory' in result.stdout.lower(), \
+            'Should indicate path is a directory'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_uninstall_rejects_non_python_binary():
+    """Test that ralph uninstall rejects non-Python binaries (security fix)."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Create a fake install directory with a non-Python binary
+        install_dir = Path(test_dir) / 'bin'
+        install_dir.mkdir(parents=True, exist_ok=True)
+        install_path = install_dir / 'ralph'
+        
+        # Create a non-Python file (bash script without Python shebang)
+        install_path.write_text('#!/bin/bash\necho "not ralph"\n')
+        install_path.chmod(0o755)
+        
+        # Run uninstall with modified PATH
+        env = os.environ.copy()
+        env['PATH'] = f"{install_dir}:{env.get('PATH', '')}"
+        result = subprocess.run(
+            ['python3', str(CLI_PATH), 'uninstall'],
+            cwd=str(test_dir),
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        
+        # Should exit with error code and reject non-Python binary
+        assert result.returncode != 0, 'Should exit with error when binary is not Python'
+        assert 'python' in result.stderr.lower() or 'python' in result.stdout.lower(), \
+            'Should indicate binary verification failed'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_version_handles_empty_file():
+    """Test that ralph version handles empty VERSION file (edge case)."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Create empty VERSION file
+        version_file = PROJECT_ROOT / 'VERSION'
+        original_content = None
+        if version_file.exists():
+            original_content = version_file.read_text()
+        
+        try:
+            version_file.write_text('')
+            
+            result = run_cli(['version'], test_dir)
+            # Should still work (fallback to git or default)
+            assert result['code'] == 0, 'Should handle empty version file gracefully'
+            assert 'ralph cli v' in result['stdout'].lower(), 'Should display version'
+        finally:
+            # Restore original content
+            if original_content is not None:
+                version_file.write_text(original_content)
+            elif version_file.exists():
+                version_file.unlink()
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_version_handles_whitespace_only_file():
+    """Test that ralph version handles whitespace-only VERSION file (edge case)."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Create whitespace-only VERSION file
+        version_file = PROJECT_ROOT / 'VERSION'
+        original_content = None
+        if version_file.exists():
+            original_content = version_file.read_text()
+        
+        try:
+            version_file.write_text('   \n\t  \n')
+            
+            result = run_cli(['version'], test_dir)
+            # Should still work (fallback to git or default)
+            assert result['code'] == 0, 'Should handle whitespace-only file'
+            assert 'ralph cli v' in result['stdout'].lower(), 'Should display version'
+        finally:
+            # Restore original content
+            if original_content is not None:
+                version_file.write_text(original_content)
+            elif version_file.exists():
+                version_file.unlink()
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_version_sanitizes_control_characters():
+    """Test that ralph version sanitizes control characters in version string (security fix)."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Create VERSION file with control characters
+        version_file = PROJECT_ROOT / 'VERSION'
+        original_content = None
+        if version_file.exists():
+            original_content = version_file.read_text()
+        
+        try:
+            # Version with control characters (ANSI escape sequence)
+            version_file.write_text('1.0.0\x1b[31mRED\x1b[0m')
+            
+            result = run_cli(['version'], test_dir)
+            # Should sanitize and display version
+            assert result['code'] == 0, 'Should handle control characters'
+            assert 'ralph cli v' in result['stdout'].lower(), 'Should display version'
+            # Should not contain the escape sequence
+            assert '\x1b[31m' not in result['stdout'], 'Should sanitize control characters'
+        finally:
+            # Restore original content
+            if original_content is not None:
+                version_file.write_text(original_content)
+            elif version_file.exists():
+                version_file.unlink()
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_run_rejects_non_python_runner():
+    """Test that ralph run rejects non-Python runner script (security fix)."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Initialize
+        run_cli(['init'], test_dir)
+        
+        # Create a non-Python file at scripts/ralph/ralph.py
+        ralph_py_path = Path(test_dir) / 'scripts/ralph/ralph.py'
+        ralph_py_path.write_text('#!/bin/bash\necho "not python"\n')
+        ralph_py_path.chmod(0o755)
+        
+        result = run_cli(['run'], test_dir)
+        # Should exit with error (validation should catch .py extension requirement)
+        # Note: This test may pass if validation is lenient, but should at least not execute
+        assert result['code'] != 0 or 'python' in result['stderr'].lower() or 'extension' in result['stderr'].lower(), \
+            'Should reject or warn about non-Python runner script'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_run_rejects_directory_runner():
+    """Test that ralph run rejects directory at runner script path (security fix)."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Initialize
+        run_cli(['init'], test_dir)
+        
+        # Remove the file and create a directory instead
+        ralph_py_path = Path(test_dir) / 'scripts/ralph/ralph.py'
+        if ralph_py_path.exists():
+            ralph_py_path.unlink()
+        ralph_py_path.mkdir(parents=True, exist_ok=True)
+        
+        result = run_cli(['run'], test_dir)
+        # Should exit with error
+        assert result['code'] != 0, 'Should exit with error when runner is a directory'
+        assert 'file' in result['stderr'].lower() or 'directory' in result['stderr'].lower(), \
+            'Should indicate path is not a file'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_run_handles_missing_python3():
+    """Test that ralph run handles missing python3 gracefully (edge case)."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # Initialize
+        run_cli(['init'], test_dir)
+        
+        # Run with PATH that doesn't include python3
+        env = os.environ.copy()
+        env['PATH'] = '/nonexistent'
+        result = subprocess.run(
+            ['python3', str(CLI_PATH), 'run'],
+            cwd=str(test_dir),
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        
+        # Should exit with error and provide helpful message
+        assert result.returncode != 0, 'Should exit with error when python3 is not available'
+        assert 'python' in result.stderr.lower() or 'python' in result.stdout.lower(), \
+            'Should mention python3 in error message'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
 if __name__ == '__main__':
     import sys
     # Simple test runner

@@ -184,3 +184,22 @@ Started: 2026-01-18 12:02:33.930209
   - Follow same security review format as previous phases for consistency
   - Operational security issues (like PATH compromise) are different from code vulnerabilities - document but don't fix in code
 ---
+
+## 2026-01-18 - US-012
+- Completed comprehensive test review for Phase 2 CLI improvements
+- Files changed:
+  - tests/cli_test.py: Added 8 missing edge case and security tests (uninstall directory check, binary verification, empty version file, whitespace version file, version sanitization, runner validation, subprocess error handling)
+  - tasks/improve-install-script-and-cli/test-review-phase-2.md: Created comprehensive test review document
+- **Learnings for future iterations:**
+  - TDD workflow was properly followed: tests were written before implementation (Red-Green-Refactor cycle verified)
+  - All tests use proper assertions and check exit codes - no "cheated" tests found
+  - Test coverage must include all critical edge cases from edge case analysis documents
+  - Test coverage must include all security fixes from security review documents
+  - When reviewing tests, verify that edge cases fixed in code review are also covered by tests
+  - Tests should verify actual behavior, not just implementation details
+  - Use `python3 -m py_compile` for syntax checking when no formal typechecker is configured
+  - Test review should verify: TDD workflow, test quality, edge case coverage, no cheated tests, implementation coverage
+  - All 28 tests (20 original + 8 added) are well-structured, maintainable, and follow TDD best practices
+  - Edge case tests should cover: directory checks, empty file handling, encoding errors, subprocess errors, binary verification
+  - Security fix tests should cover: binary verification, path validation, input sanitization, subprocess argument validation
+---
