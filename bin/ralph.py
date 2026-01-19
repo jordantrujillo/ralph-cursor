@@ -97,16 +97,27 @@ def handle_init(args):
 
         # Create subdirectory if needed
         if not dest_dir.exists():
-            dest_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            except (PermissionError, OSError) as e:
+                print(f'Error: Failed to create directory {dest_dir}: {e}', file=sys.stderr)
+                print(f'  Skipping file: {file_info["dest"]}', file=sys.stderr)
+                skipped.append(file_info['dest'])
+                continue
 
         if dest_path.exists() and not force:
             skipped.append(file_info['dest'])
             continue
 
-        shutil.copy2(src_path, dest_path)
-        if file_info['executable']:
-            dest_path.chmod(0o755)
-        created.append(file_info['dest'])
+        try:
+            shutil.copy2(src_path, dest_path)
+            if file_info['executable']:
+                dest_path.chmod(0o755)
+            created.append(file_info['dest'])
+        except (PermissionError, OSError) as e:
+            print(f'Error: Failed to copy file {file_info["dest"]}: {e}', file=sys.stderr)
+            print(f'  Source: {src_path}', file=sys.stderr)
+            skipped.append(file_info['dest'])
 
     # Copy skills from skills/ to .cursor/skills/
     skills_src_dir = PACKAGE_ROOT / 'skills'
@@ -121,51 +132,77 @@ def handle_init(args):
                     
                     # Create destination directory
                     if not dest_skill_dir.exists():
-                        dest_skill_dir.mkdir(parents=True, exist_ok=True)
+                        try:
+                            dest_skill_dir.mkdir(parents=True, exist_ok=True)
+                        except (PermissionError, OSError) as e:
+                            print(f'Warning: Failed to create directory {dest_skill_dir}: {e}', file=sys.stderr)
+                            continue
                     
                     # Check if file exists and handle force flag
                     if dest_skill_file.exists() and not force:
                         skipped.append(f'.cursor/skills/{skill_dir.name}/SKILL.md')
                     else:
-                        shutil.copy2(skill_file, dest_skill_file)
-                        created.append(f'.cursor/skills/{skill_dir.name}/SKILL.md')
+                        try:
+                            shutil.copy2(skill_file, dest_skill_file)
+                            created.append(f'.cursor/skills/{skill_dir.name}/SKILL.md')
+                        except (PermissionError, OSError) as e:
+                            print(f'Warning: Failed to copy skill file {skill_dir.name}/SKILL.md: {e}', file=sys.stderr)
+                            skipped.append(f'.cursor/skills/{skill_dir.name}/SKILL.md')
 
     # Optional: .cursor/rules/ralph-prd.mdc
     if cursor_rules:
         cursor_rules_dir = repo_root / '.cursor' / 'rules'
         cursor_rules_file = cursor_rules_dir / 'ralph-prd.mdc'
         if not cursor_rules_dir.exists():
-            cursor_rules_dir.mkdir(parents=True, exist_ok=True)
-        if cursor_rules_file.exists() and not force:
-            skipped.append('.cursor/rules/ralph-prd.mdc')
-        else:
-            src_rules = PACKAGE_ROOT / '.cursor' / 'rules' / 'ralph-prd.mdc'
-            if src_rules.exists():
-                shutil.copy2(src_rules, cursor_rules_file)
-                created.append('.cursor/rules/ralph-prd.mdc')
+            try:
+                cursor_rules_dir.mkdir(parents=True, exist_ok=True)
+            except (PermissionError, OSError) as e:
+                print(f'Warning: Failed to create directory {cursor_rules_dir}: {e}', file=sys.stderr)
+                skipped.append('.cursor/rules/ralph-prd.mdc')
+            else:
+                if cursor_rules_file.exists() and not force:
+                    skipped.append('.cursor/rules/ralph-prd.mdc')
+                else:
+                    src_rules = PACKAGE_ROOT / '.cursor' / 'rules' / 'ralph-prd.mdc'
+                    if src_rules.exists():
+                        try:
+                            shutil.copy2(src_rules, cursor_rules_file)
+                            created.append('.cursor/rules/ralph-prd.mdc')
+                        except (PermissionError, OSError) as e:
+                            print(f'Warning: Failed to copy cursor rules file: {e}', file=sys.stderr)
+                            skipped.append('.cursor/rules/ralph-prd.mdc')
 
     # Optional: .cursor/cli.json
     if cursor_cli:
         cursor_cli_file = repo_root / '.cursor' / 'cli.json'
         cursor_dir = cursor_cli_file.parent
         if not cursor_dir.exists():
-            cursor_dir.mkdir(parents=True, exist_ok=True)
-        if cursor_cli_file.exists() and not force:
-            skipped.append('.cursor/cli.json')
-        else:
-            # Create a basic template
-            cli_template = {
-                "mcpServers": {
-                    "cursor-ide-browser": {
-                        "command": "node",
-                        "args": []
+            try:
+                cursor_dir.mkdir(parents=True, exist_ok=True)
+            except (PermissionError, OSError) as e:
+                print(f'Warning: Failed to create directory {cursor_dir}: {e}', file=sys.stderr)
+                skipped.append('.cursor/cli.json')
+            else:
+                if cursor_cli_file.exists() and not force:
+                    skipped.append('.cursor/cli.json')
+                else:
+                    # Create a basic template
+                    cli_template = {
+                        "mcpServers": {
+                            "cursor-ide-browser": {
+                                "command": "node",
+                                "args": []
+                            }
+                        }
                     }
-                }
-            }
-            with open(cursor_cli_file, 'w') as f:
-                json.dump(cli_template, f, indent=2)
-                f.write('\n')
-            created.append('.cursor/cli.json')
+                    try:
+                        with open(cursor_cli_file, 'w', encoding='utf-8') as f:
+                            json.dump(cli_template, f, indent=2)
+                            f.write('\n')
+                        created.append('.cursor/cli.json')
+                    except (PermissionError, OSError) as e:
+                        print(f'Warning: Failed to create .cursor/cli.json: {e}', file=sys.stderr)
+                        skipped.append('.cursor/cli.json')
 
     # Print summary
     print('\n' + '='*60)
@@ -222,11 +259,21 @@ def handle_run(args):
 
     # Execute the runner script, passing through all arguments
     # scripts/ralph/ralph.py accepts: [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
-    result = subprocess.run(
-        ['python3', str(runner_script)] + args,
-        cwd=str(repo_root)
-    )
-    sys.exit(result.returncode)
+    try:
+        result = subprocess.run(
+            ['python3', str(runner_script)] + args,
+            cwd=str(repo_root)
+        )
+        sys.exit(result.returncode)
+    except FileNotFoundError:
+        print('Error: python3 is not available in your PATH.', file=sys.stderr)
+        print('', file=sys.stderr)
+        print('Please ensure Python 3 is installed and available.', file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f'Error: Failed to execute runner script: {e}', file=sys.stderr)
+        print(f'  Script: {runner_script}', file=sys.stderr)
+        sys.exit(1)
 
 
 def handle_uninstall(args):
@@ -253,6 +300,14 @@ def handle_uninstall(args):
         print('', file=sys.stdout)
         print('The installation may have already been removed.', file=sys.stdout)
         sys.exit(0)
+    
+    # Check if it's a directory (shouldn't happen, but handle gracefully)
+    if ralph_path.is_dir():
+        print('Error: Ralph installation path is a directory, not a file:', file=sys.stderr)
+        print(f'  {ralph_path_str}', file=sys.stderr)
+        print('', file=sys.stderr)
+        print('This is unexpected. Please manually remove the directory if needed.', file=sys.stderr)
+        sys.exit(1)
     
     # Remove the file or symlink
     try:
@@ -283,7 +338,10 @@ def handle_version(args):
     version_file = PACKAGE_ROOT / 'VERSION'
     if version_file.exists():
         try:
-            version = version_file.read_text().strip()
+            version = version_file.read_text(encoding='utf-8').strip()
+            # If file is empty or whitespace-only, treat as missing
+            if not version:
+                version = None
         except Exception:
             pass
     if not version:

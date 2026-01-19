@@ -147,3 +147,21 @@ Started: 2026-01-18 12:02:33.930209
   - When reading from git, use subprocess.run() with timeout to avoid hanging
   - Update all relevant places when adding new commands: handle function, _print_available_commands, _suggest_command, print_help, and main() routing
 ---
+
+## 2026-01-18 - US-010
+- Completed comprehensive edge case analysis for Phase 2 CLI improvements
+- Files changed:
+  - bin/ralph.py: Fixed 7 critical edge cases (directory check in uninstall, version file encoding, empty version handling, file operation error handling, directory creation errors, JSON file creation errors, subprocess error handling)
+  - tasks/improve-install-script-and-cli/edge-case-analysis-phase-2.md: Created comprehensive edge case analysis document with 7 critical fixes and 12 non-critical edge cases documented
+- **Learnings for future iterations:**
+  - Always check if path is a directory before attempting to unlink() - use is_dir() check
+  - Specify encoding='utf-8' explicitly for all read_text() and file operations for consistency
+  - Handle empty/whitespace-only version strings explicitly - treat as missing to allow fallback
+  - Wrap all file operations (copy2, chmod, mkdir, json.dump) in try-except blocks to catch PermissionError and OSError
+  - Continue with other files when one file operation fails in init - don't fail completely
+  - Handle FileNotFoundError specifically for subprocess.run() when python3 is not available
+  - Catch general Exception for subprocess.run() to handle other failures gracefully
+  - Document non-critical edge cases for future consideration - focus on fixing critical bugs first
+  - Edge case analysis should follow same format as previous phases for consistency
+  - Use python3 -m py_compile for syntax checking when no formal typechecker is configured
+---
