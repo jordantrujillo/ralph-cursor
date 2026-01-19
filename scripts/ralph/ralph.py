@@ -120,6 +120,15 @@ class RalphAgent:
             date = datetime.now().strftime("%Y-%m-%d")
             # Strip "ralph/" prefix from branch name for folder
             folder_name = last_branch.replace("ralph/", "")
+            
+            # Security: Sanitize folder_name to prevent path traversal attacks
+            # Only allow alphanumeric, dash, underscore, and dot characters
+            import re
+            folder_name = re.sub(r'[^a-zA-Z0-9\-_.]', '_', folder_name)
+            # Prevent directory traversal attempts
+            if '..' in folder_name or '/' in folder_name or '\\' in folder_name:
+                folder_name = folder_name.replace('..', '_').replace('/', '_').replace('\\', '_')
+            
             archive_folder = self.archive_dir / f"{date}-{folder_name}"
             
             print(f"Archiving previous run: {last_branch}")
@@ -180,10 +189,31 @@ class RalphAgent:
         """Run a single Cursor iteration"""
         proc = None
         try:
-            with open(prompt_file, 'r', encoding='utf-8') as f:
+            # Security: Validate prompt_file path to prevent path traversal
+            prompt_file_path = Path(prompt_file)
+            if not prompt_file_path.is_absolute():
+                prompt_file_path = self.script_dir / prompt_file_path
+            prompt_file_path = prompt_file_path.resolve()
+            
+            # Ensure the prompt file is within the script directory to prevent path traversal
+            try:
+                prompt_file_path.relative_to(self.script_dir.resolve())
+            except ValueError:
+                raise ValueError(f"Prompt file path outside script directory: {prompt_file_path}")
+            
+            if not prompt_file_path.exists():
+                raise FileNotFoundError(f"Prompt file not found: {prompt_file_path}")
+            
+            with open(prompt_file_path, 'r', encoding='utf-8') as f:
                 prompt_text = f.read()
             
+            # Security: Validate model parameter to prevent command injection
+            # Model should only contain alphanumeric, dash, underscore, and dot
+            if not all(c.isalnum() or c in ['-', '_', '.'] for c in self.model):
+                raise ValueError(f"Invalid model name: {self.model}")
+            
             # Build cursor command (prompt text will be passed as argument, matching bash behavior)
+            # Security: Using list form of subprocess.Popen (not shell=True) prevents command injection
             cursor_binary = self._find_cursor_binary()
             cmd = [
                 cursor_binary,

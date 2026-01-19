@@ -15,6 +15,44 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RALPH_SCRIPT="$SCRIPT_DIR/bin/ralph.py"
 INSTALL_NAME="ralph"
 
+# Security: Validate and sanitize paths to prevent path traversal attacks
+# This function ensures a path is absolute and doesn't contain dangerous patterns
+_validate_path() {
+    local path="$1"
+    local path_type="$2"
+    
+    # Check if path is empty
+    if [ -z "$path" ]; then
+        echo -e "${RED}Error: $path_type path is empty${NC}" >&2
+        return 1
+    fi
+    
+    # Check for path traversal attempts (.., //, etc.)
+    if [[ "$path" == *".."* ]] || [[ "$path" == *"//"* ]]; then
+        echo -e "${RED}Error: $path_type path contains invalid characters: $path${NC}" >&2
+        return 1
+    fi
+    
+    # For HOME-based paths, ensure they start with $HOME
+    if [ "$path_type" = "HOME" ]; then
+        if [[ "$path" != "$HOME"* ]] && [[ "$path" != "~"* ]]; then
+            echo -e "${RED}Error: $path_type path is not within HOME directory: $path${NC}" >&2
+            return 1
+        fi
+    fi
+    
+    return 0
+}
+
+# Security: Sanitize path for use in shell config files
+# Removes any characters that could be used for command injection
+_sanitize_path_for_config() {
+    local path="$1"
+    # Remove any characters that could be dangerous in shell config files
+    # Allow: alphanumeric, /, -, _, ., ~
+    echo "$path" | sed 's/[^a-zA-Z0-9\/\-_\.~]//g'
+}
+
 # Validate HOME variable
 if [ -z "$HOME" ]; then
     echo -e "${RED}Error: HOME environment variable is not set${NC}" >&2
@@ -22,6 +60,11 @@ if [ -z "$HOME" ]; then
     echo "Next steps:" >&2
     echo "  1. Set HOME environment variable: export HOME=\$HOME" >&2
     echo "  2. Or specify HOME explicitly: HOME=/path/to/home $0" >&2
+    exit 1
+fi
+
+# Security: Validate HOME path to prevent path traversal
+if ! _validate_path "$HOME" "HOME"; then
     exit 1
 fi
 
@@ -42,10 +85,17 @@ INSTALL_DIR=""
 USE_SYMLINK=true
 
 # Try to use ~/.local/bin first
-if [ -w "$HOME/.local/bin" ] 2>/dev/null; then
-    INSTALL_DIR="$HOME/.local/bin"
-elif mkdir -p "$HOME/.local/bin" 2>/dev/null && [ -w "$HOME/.local/bin" ] 2>/dev/null; then
-    INSTALL_DIR="$HOME/.local/bin"
+# Security: Validate paths before using them
+LOCAL_BIN_PATH="$HOME/.local/bin"
+if ! _validate_path "$LOCAL_BIN_PATH" "HOME"; then
+    echo -e "${RED}Error: Invalid HOME path detected${NC}" >&2
+    exit 1
+fi
+
+if [ -w "$LOCAL_BIN_PATH" ] 2>/dev/null; then
+    INSTALL_DIR="$LOCAL_BIN_PATH"
+elif mkdir -p "$LOCAL_BIN_PATH" 2>/dev/null && [ -w "$LOCAL_BIN_PATH" ] 2>/dev/null; then
+    INSTALL_DIR="$LOCAL_BIN_PATH"
 elif [ -w "/usr/local/bin" ] 2>/dev/null; then
     INSTALL_DIR="/usr/local/bin"
 else
@@ -253,8 +303,13 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
                     echo -e "  ${YELLOW}Running:${NC} $cmd"
                     
                     # Execute installation command
-                    # Note: eval is used here because commands may contain && operators
-                    # Commands are controlled by the script, so this is safe
+                    # Security Note: eval is used here because commands may contain && operators
+                    # This is SAFE because:
+                    # 1. Commands come from hardcoded DEP_INSTALL_COMMANDS array (lines 171-188)
+                    # 2. No user input influences these commands
+                    # 3. The only variable interpolation is $ARCH which is validated (lines 175-182)
+                    # However, eval is inherently risky - if this script is modified, ensure
+                    # any new commands added to DEP_INSTALL_COMMANDS are fully validated
                     if eval "$cmd" 2>&1; then
                         INSTALL_EXIT_CODE=$?
                     else
@@ -456,13 +511,22 @@ if [ "$PATH_INCLUDES_INSTALL_DIR" = false ]; then
                 if [ "$ADD_PATH" = true ]; then
                     echo ""
                     echo "Adding PATH to $SHELL_CONFIG_FILE..."
+                    # Security: Sanitize INSTALL_DIR before writing to config file to prevent code injection
+                    SANITIZED_INSTALL_DIR="$(_sanitize_path_for_config "$INSTALL_DIR")"
+                    if [ -z "$SANITIZED_INSTALL_DIR" ] || [ "$SANITIZED_INSTALL_DIR" != "$INSTALL_DIR" ]; then
+                        echo -e "${RED}Error: Install directory path contains invalid characters${NC}" >&2
+                        echo "  Original: $INSTALL_DIR" >&2
+                        echo "  Sanitized: $SANITIZED_INSTALL_DIR" >&2
+                        exit 1
+                    fi
                     echo "" >> "$SHELL_CONFIG_FILE"
                     echo "# Added by Ralph install script" >> "$SHELL_CONFIG_FILE"
                     # Use fish_add_path for fish shell, export PATH for others
+                    # Security: Use printf with %q to properly quote the path
                     if [ "$DETECTED_SHELL" = "fish" ]; then
-                        echo "fish_add_path $INSTALL_DIR" >> "$SHELL_CONFIG_FILE"
+                        printf "fish_add_path %q\n" "$SANITIZED_INSTALL_DIR" >> "$SHELL_CONFIG_FILE"
                     else
-                        echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$SHELL_CONFIG_FILE"
+                        printf "export PATH=\"\$PATH:%q\"\n" "$SANITIZED_INSTALL_DIR" >> "$SHELL_CONFIG_FILE"
                     fi
                     echo -e "${GREEN}✓ Added PATH to $SHELL_CONFIG_FILE${NC}"
                     echo ""

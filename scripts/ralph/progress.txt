@@ -65,3 +65,22 @@ Started: 2026-01-18 12:02:33.930209
   - Document non-critical edge cases for future consideration rather than fixing everything immediately
   - Edge case analysis should focus on critical bugs first, then document non-critical ones
 ---
+
+## 2026-01-18 - US-005
+- Completed comprehensive security review and fixed all critical vulnerabilities
+- Files changed:
+  - install.sh: Added path validation functions (_validate_path, _sanitize_path_for_config), sanitized INSTALL_DIR before writing to shell config files, added security documentation for eval usage, validated HOME and INSTALL_DIR paths to prevent path traversal
+  - scripts/ralph/ralph.py: Added path validation for prompt_file to prevent path traversal, added model parameter validation to prevent command injection, added sanitization for archive folder names
+  - tasks/improve-install-script-and-cli/security-report-phase-1.md: Created comprehensive security report documenting all findings, fixes, and remaining acceptable risks
+- **Learnings for future iterations:**
+  - Always validate and sanitize paths before using them in file operations or writing to config files
+  - Use printf with %q format specifier for proper shell quoting when writing paths to shell config files
+  - Validate all inputs to subprocess calls, especially file paths and command parameters
+  - Document security assumptions for risky patterns (like eval) even when they're safe in current context
+  - Path traversal prevention requires checking for "..", "//", and ensuring paths are within expected directories
+  - When writing to shell config files, sanitize paths to remove any characters that could be used for command injection
+  - Use Path.resolve() and relative_to() in Python to prevent path traversal attacks
+  - Always validate environment variables (HOME, PATH) before using them
+  - Archive folder names from user-controlled sources (like branch names) should be sanitized
+  - Security reviews should fix critical issues, document medium/minor issues, and document acceptable risks
+---
