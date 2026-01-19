@@ -8,4 +8,8 @@ progress.txt
 
 # OS files
 .DS_Store
-scripts/ralph/__pycache__/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
