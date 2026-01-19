@@ -303,16 +303,175 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     fi
 fi
 
+# Detect current shell for PATH configuration
+DETECTED_SHELL=""
+SHELL_CONFIG_FILE=""
+
+# Try to detect shell from $SHELL environment variable
+if [ -n "$SHELL" ]; then
+    if [[ "$SHELL" == *"zsh"* ]]; then
+        DETECTED_SHELL="zsh"
+        SHELL_CONFIG_FILE="$HOME/.zshrc"
+    elif [[ "$SHELL" == *"bash"* ]]; then
+        DETECTED_SHELL="bash"
+        # On macOS, bash typically uses .bash_profile, on Linux .bashrc
+        if [ "$DETECTED_PLATFORM" = "macos" ]; then
+            SHELL_CONFIG_FILE="$HOME/.bash_profile"
+        else
+            SHELL_CONFIG_FILE="$HOME/.bashrc"
+        fi
+    elif [[ "$SHELL" == *"fish"* ]]; then
+        DETECTED_SHELL="fish"
+        SHELL_CONFIG_FILE="$HOME/.config/fish/config.fish"
+    fi
+fi
+
+# Fallback: try to detect from process name or common files
+if [ -z "$DETECTED_SHELL" ]; then
+    # Check for common shell config files that exist
+    if [ -f "$HOME/.zshrc" ]; then
+        DETECTED_SHELL="zsh"
+        SHELL_CONFIG_FILE="$HOME/.zshrc"
+    elif [ -f "$HOME/.bash_profile" ]; then
+        DETECTED_SHELL="bash"
+        SHELL_CONFIG_FILE="$HOME/.bash_profile"
+    elif [ -f "$HOME/.bashrc" ]; then
+        DETECTED_SHELL="bash"
+        SHELL_CONFIG_FILE="$HOME/.bashrc"
+    elif [ -f "$HOME/.profile" ]; then
+        DETECTED_SHELL="sh"
+        SHELL_CONFIG_FILE="$HOME/.profile"
+    else
+        # Default fallback
+        if [ "$DETECTED_PLATFORM" = "macos" ]; then
+            DETECTED_SHELL="zsh"  # macOS default is zsh
+            SHELL_CONFIG_FILE="$HOME/.zshrc"
+        else
+            DETECTED_SHELL="bash"
+            SHELL_CONFIG_FILE="$HOME/.bashrc"
+        fi
+    fi
+fi
+
 # Check if install directory is in PATH
-if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
+PATH_INCLUDES_INSTALL_DIR=false
+if [[ ":$PATH:" == *":$INSTALL_DIR:"* ]]; then
+    PATH_INCLUDES_INSTALL_DIR=true
+fi
+
+# Also check if command is available (works for both interactive and non-interactive shells)
+COMMAND_AVAILABLE=false
+if command -v "$INSTALL_NAME" >/dev/null 2>&1; then
+    COMMAND_AVAILABLE=true
+    PATH_INCLUDES_INSTALL_DIR=true  # If command works, PATH is effectively correct
+fi
+
+if [ "$PATH_INCLUDES_INSTALL_DIR" = false ]; then
     echo ""
     echo -e "${YELLOW}Warning: $INSTALL_DIR is not in your PATH${NC}"
     echo ""
-    echo "Add this to your ~/.bashrc, ~/.zshrc, or ~/.profile:"
-    echo -e "${GREEN}export PATH=\"\$PATH:$INSTALL_DIR\"${NC}"
-    echo ""
-    echo "Then run: source ~/.bashrc  # (or ~/.zshrc)"
-    echo ""
+    
+    # Provide shell-specific guidance
+    if [ -n "$DETECTED_SHELL" ] && [ -n "$SHELL_CONFIG_FILE" ]; then
+        echo "Detected shell: $DETECTED_SHELL"
+        echo "Config file: $SHELL_CONFIG_FILE"
+        echo ""
+        
+        # Platform-specific guidance
+        if [ "$DETECTED_PLATFORM" = "macos" ]; then
+            echo "On macOS, you can add the PATH in one of these ways:"
+            if [ "$DETECTED_SHELL" = "zsh" ]; then
+                echo "  1. Add to ~/.zshrc (recommended for zsh)"
+            elif [ "$DETECTED_SHELL" = "bash" ]; then
+                echo "  1. Add to ~/.bash_profile (recommended for bash on macOS)"
+            fi
+            echo "  2. Add to ~/.profile (works for all shells)"
+        else
+            echo "On Linux, you can add the PATH in one of these ways:"
+            if [ "$DETECTED_SHELL" = "zsh" ]; then
+                echo "  1. Add to ~/.zshrc (recommended for zsh)"
+            elif [ "$DETECTED_SHELL" = "bash" ]; then
+                echo "  1. Add to ~/.bashrc (recommended for bash on Linux)"
+            fi
+            echo "  2. Add to ~/.profile (works for all shells)"
+        fi
+        echo ""
+        
+        # Offer to add PATH automatically
+        if [ -f "$SHELL_CONFIG_FILE" ] && [ -w "$SHELL_CONFIG_FILE" ]; then
+            # Check if PATH is already in config file
+            if ! grep -q "PATH.*$INSTALL_DIR" "$SHELL_CONFIG_FILE" 2>/dev/null; then
+                read -p "Would you like to add $INSTALL_DIR to your PATH automatically? [y/N] " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    echo ""
+                    echo "Adding PATH to $SHELL_CONFIG_FILE..."
+                    echo "" >> "$SHELL_CONFIG_FILE"
+                    echo "# Added by Ralph install script" >> "$SHELL_CONFIG_FILE"
+                    echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$SHELL_CONFIG_FILE"
+                    echo -e "${GREEN}✓ Added PATH to $SHELL_CONFIG_FILE${NC}"
+                    echo ""
+                    echo "To use Ralph immediately, run:"
+                    echo -e "${GREEN}  source $SHELL_CONFIG_FILE${NC}"
+                    echo ""
+                    echo "Or restart your terminal."
+                    echo ""
+                else
+                    echo ""
+                    echo "Manual configuration:"
+                    echo "Add this line to $SHELL_CONFIG_FILE:"
+                    echo -e "${GREEN}export PATH=\"\$PATH:$INSTALL_DIR\"${NC}"
+                    echo ""
+                    echo "Then run:"
+                    echo -e "${GREEN}  source $SHELL_CONFIG_FILE${NC}"
+                    echo ""
+                fi
+            else
+                echo "PATH already configured in $SHELL_CONFIG_FILE"
+                echo "You may need to restart your terminal or run:"
+                echo -e "${GREEN}  source $SHELL_CONFIG_FILE${NC}"
+                echo ""
+            fi
+        else
+            # Config file doesn't exist or isn't writable - provide manual instructions
+            echo "Manual configuration:"
+            if [ ! -f "$SHELL_CONFIG_FILE" ]; then
+                echo "Create $SHELL_CONFIG_FILE and add:"
+            else
+                echo "Add this line to $SHELL_CONFIG_FILE:"
+            fi
+            echo -e "${GREEN}export PATH=\"\$PATH:$INSTALL_DIR\"${NC}"
+            echo ""
+            if [ "$DETECTED_SHELL" = "fish" ]; then
+                echo "For fish shell, use:"
+                echo -e "${GREEN}fish_add_path $INSTALL_DIR${NC}"
+                echo ""
+            fi
+            echo "Then run:"
+            if [ "$DETECTED_SHELL" = "zsh" ]; then
+                echo -e "${GREEN}  source ~/.zshrc${NC}"
+            elif [ "$DETECTED_SHELL" = "bash" ]; then
+                if [ "$DETECTED_PLATFORM" = "macos" ]; then
+                    echo -e "${GREEN}  source ~/.bash_profile${NC}"
+                else
+                    echo -e "${GREEN}  source ~/.bashrc${NC}"
+                fi
+            elif [ "$DETECTED_SHELL" = "fish" ]; then
+                echo -e "${GREEN}  source ~/.config/fish/config.fish${NC}"
+            else
+                echo -e "${GREEN}  source $SHELL_CONFIG_FILE${NC}"
+            fi
+            echo ""
+        fi
+    else
+        # Fallback: generic instructions
+        echo "Add this to your shell configuration file (~/.bashrc, ~/.zshrc, or ~/.profile):"
+        echo -e "${GREEN}export PATH=\"\$PATH:$INSTALL_DIR\"${NC}"
+        echo ""
+        echo "Then restart your terminal or run:"
+        echo "  source ~/.bashrc  # (or ~/.zshrc, ~/.profile)"
+        echo ""
+    fi
 else
     echo ""
     echo -e "${GREEN}✓ Installation complete!${NC}"
@@ -331,7 +490,11 @@ else
             echo -e "${GREEN}✓ Installation verified - Ralph CLI is working!${NC}"
         else
             echo -e "${YELLOW}⚠ Installation complete, but verification test failed${NC}"
-            echo "  You may need to restart your terminal or run: source ~/.bashrc"
+            if [ -n "$SHELL_CONFIG_FILE" ]; then
+                echo "  You may need to restart your terminal or run: source $SHELL_CONFIG_FILE"
+            else
+                echo "  You may need to restart your terminal"
+            fi
         fi
     fi
 fi

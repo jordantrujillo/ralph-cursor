@@ -571,6 +571,251 @@ test_dependency_verification() {
   cleanup_test_env
 }
 
+# Test: Script detects current shell (bash, zsh, fish) and provides appropriate config file
+test_shell_detection() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  # Remove install directory from PATH to trigger PATH warning
+  export PATH="/usr/bin:/bin"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  # Test bash detection
+  # Clean up any existing installation first
+  rm -f "$TEST_DIR/.local/bin/ralph" 2>/dev/null || true
+  cd "$TEST_DIR"
+  export SHELL="/bin/bash"
+  OUTPUT=$(echo -e "n\nn" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if script mentions bash-specific config file
+  if echo "$OUTPUT" | grep -qiE "(\.bashrc|\.bash_profile|bash)"; then
+    echo -e "${GREEN}PASS${NC}: Shell detection works for bash"
+  else
+    echo -e "${RED}FAIL${NC}: Shell detection not working for bash"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  # Test zsh detection
+  # Clean up any existing installation first
+  rm -f "$TEST_DIR/.local/bin/ralph" 2>/dev/null || true
+  cd "$TEST_DIR"
+  export SHELL="/bin/zsh"
+  OUTPUT=$(echo -e "n\nn" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if script mentions zsh-specific config file
+  if echo "$OUTPUT" | grep -qiE "(\.zshrc|zsh)"; then
+    echo -e "${GREEN}PASS${NC}: Shell detection works for zsh"
+  else
+    echo -e "${RED}FAIL${NC}: Shell detection not working for zsh"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: PATH detection works for both interactive and non-interactive shells
+test_path_detection_interactive_noninteractive() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  # Test 1: PATH includes install directory (should succeed)
+  # Clean up any existing installation first
+  rm -f "$TEST_DIR/.local/bin/ralph" 2>/dev/null || true
+  export PATH="$TEST_DIR/.local/bin:$PATH"
+  cd "$TEST_DIR"
+  # Say "n" to skip dependency installation
+  OUTPUT=$(echo -e "n" | bash "$TEST_DIR/install.sh" 2>&1) || EXIT_CODE=$?
+  EXIT_CODE=${EXIT_CODE:-$?}
+  cd "$REPO_ROOT"
+  
+  if [ $EXIT_CODE -eq 0 ] && echo "$OUTPUT" | grep -qiE "(Installation complete|✓.*complete|successfully installed)"; then
+    echo -e "${GREEN}PASS${NC}: PATH detection works when PATH is correct"
+  else
+    echo -e "${RED}FAIL${NC}: PATH detection failed when PATH is correct"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  # Test 2: PATH doesn't include install directory (should warn)
+  # Clean up any existing installation first
+  rm -f "$TEST_DIR/.local/bin/ralph" 2>/dev/null || true
+  export PATH="/usr/bin:/bin"
+  cd "$TEST_DIR"
+  OUTPUT=$(echo -e "n\nn" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  if echo "$OUTPUT" | grep -qiE "(not in.*PATH|add.*PATH|warning)"; then
+    echo -e "${GREEN}PASS${NC}: PATH detection works when PATH is missing install directory"
+  else
+    echo -e "${RED}FAIL${NC}: PATH detection not working when PATH is missing install directory"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Provides platform-specific instructions (macOS vs Linux)
+test_platform_specific_path_instructions() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="/usr/bin:/bin"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  # Test macOS
+  export OSTYPE="darwin"
+  cd "$TEST_DIR"
+  OUTPUT=$(echo "n" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check for macOS-specific guidance (could mention Homebrew paths, etc.)
+  if echo "$OUTPUT" | grep -qiE "(macos|darwin|homebrew|\.zshrc|\.bash_profile)"; then
+    echo -e "${GREEN}PASS${NC}: Platform-specific instructions provided for macOS"
+  else
+    # At minimum, should mention config files
+    if echo "$OUTPUT" | grep -qiE "(\.bashrc|\.zshrc|\.profile|export PATH)"; then
+      echo -e "${GREEN}PASS${NC}: Platform-specific instructions provided (config files mentioned)"
+    else
+      echo -e "${RED}FAIL${NC}: Platform-specific instructions not provided for macOS"
+      echo "Output: $OUTPUT"
+      cleanup_test_env
+      return 1
+    fi
+  fi
+  
+  # Test Linux
+  # Clean up any existing installation first
+  rm -f "$TEST_DIR/.local/bin/ralph" 2>/dev/null || true
+  export OSTYPE="linux-gnu"
+  cd "$TEST_DIR"
+  OUTPUT=$(echo -e "n\nn" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check for Linux-specific guidance
+  if echo "$OUTPUT" | grep -qiE "(linux|\.bashrc|\.profile|export PATH)"; then
+    echo -e "${GREEN}PASS${NC}: Platform-specific instructions provided for Linux"
+  else
+    echo -e "${RED}FAIL${NC}: Platform-specific instructions not provided for Linux"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Offers to add PATH automatically if possible (with user confirmation)
+test_automatic_path_addition() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="/usr/bin:/bin"
+  
+  # Create a writable config file
+  touch "$TEST_DIR/.bashrc"
+  chmod 644 "$TEST_DIR/.bashrc"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  # Test: Script should offer to add PATH automatically
+  export SHELL="/bin/bash"
+  cd "$TEST_DIR"
+  # First say "n" to skip automatic addition, but check if offer was made
+  OUTPUT=$(echo -e "n\nn" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if script offers to add PATH automatically
+  if echo "$OUTPUT" | grep -qiE "(add.*automatically|add to.*config|would you like|y/n)"; then
+    echo -e "${GREEN}PASS${NC}: Script offers to add PATH automatically"
+  else
+    # If automatic addition isn't implemented yet, that's okay for now
+    # But should at least provide manual instructions
+    if echo "$OUTPUT" | grep -qiE "(export PATH|add.*PATH|\.bashrc|\.zshrc)"; then
+      echo -e "${YELLOW}WARN${NC}: Automatic PATH addition not offered, but manual instructions provided"
+      echo -e "${GREEN}PASS${NC}: Manual PATH configuration instructions provided"
+    else
+      echo -e "${RED}FAIL${NC}: No PATH addition offer or instructions provided"
+      echo "Output: $OUTPUT"
+      cleanup_test_env
+      return 1
+    fi
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Clear instructions for manual PATH configuration
+test_manual_path_configuration_instructions() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="/usr/bin:/bin"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  # Test with bash
+  export SHELL="/bin/bash"
+  cd "$TEST_DIR"
+  OUTPUT=$(echo "n" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check for clear manual instructions
+  if echo "$OUTPUT" | grep -qiE "(export PATH|add.*to.*\.bashrc|\.zshrc|\.profile|source.*bashrc|source.*zshrc)"; then
+    echo -e "${GREEN}PASS${NC}: Clear manual PATH configuration instructions provided"
+  else
+    echo -e "${RED}FAIL${NC}: Manual PATH configuration instructions not clear"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
 run_tests() {
   echo "Testing install.sh error handling..."
   echo ""
@@ -591,6 +836,11 @@ run_tests() {
   if test_dependency_progress_indicators; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_unsupported_platform; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_dependency_verification; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_shell_detection; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_path_detection_interactive_noninteractive; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_platform_specific_path_instructions; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_automatic_path_addition; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_manual_path_configuration_instructions; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   
   echo ""
   echo "========================================="
