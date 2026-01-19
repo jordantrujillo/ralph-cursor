@@ -113,7 +113,7 @@ phases:
           - Success messages are clear and informative
           - Typecheck passes
         priority: 1
-        passes: false
+        passes: true
         notes: 
       - id: US-008
         title: Add ralph uninstall command

@@ -87,9 +87,11 @@ def handle_init(args):
 
         # Verify source file exists
         if not src_path.exists():
-            print(f'Warning: Source file not found: {src_path}', file=sys.stderr)
-            print(f'  Looking in: {TEMPLATES_DIR}', file=sys.stderr)
+            print(f'Warning: Source template file not found: {src_path}', file=sys.stderr)
+            print(f'  Expected location: {TEMPLATES_DIR}', file=sys.stderr)
             print(f'  Package root: {PACKAGE_ROOT}', file=sys.stderr)
+            print(f'  This may indicate a corrupted or incomplete installation.', file=sys.stderr)
+            print(f'  The file {file_info["dest"]} will be skipped.', file=sys.stderr)
             skipped.append(file_info['dest'])
             continue
 
@@ -166,16 +168,32 @@ def handle_init(args):
             created.append('.cursor/cli.json')
 
     # Print summary
-    print('\nSummary:')
+    print('\n' + '='*60)
+    print('Ralph Initialization Summary')
+    print('='*60)
     if created:
-        print(f'\nCreated {len(created)} file(s):')
+        print(f'\n✓ Created {len(created)} file(s):')
         for f in created:
-            print(f' - {f}')
+            print(f'  • {f}')
     if skipped:
-        print(f'\nSkipped {len(skipped)} file(s) (already exist, use --force to overwrite):')
+        print(f'\n⊘ Skipped {len(skipped)} file(s) (already exist):')
         for f in skipped:
-            print(f' - {f}')
-    print('\nRalph initialized! Run `ralph run` to start.')
+            print(f'  • {f}')
+        print('\n  Tip: Use --force to overwrite existing files')
+    
+    if created:
+        print('\n' + '='*60)
+        print('✓ Ralph initialized successfully!')
+        print('='*60)
+        print('\nNext steps:')
+        print('  1. Create or update scripts/ralph/prd.yml with your user stories')
+        print('  2. Run: ralph run')
+        print('\nFor more information, run: ralph --help')
+    else:
+        print('\n' + '='*60)
+        print('⊘ No files were created (all files already exist)')
+        print('='*60)
+        print('\nTip: Use --force to overwrite existing files')
 
 
 def handle_run(args):
@@ -191,8 +209,15 @@ def handle_run(args):
     runner_script = repo_root / 'scripts' / 'ralph' / 'ralph.py'
 
     if not runner_script.exists():
-        print('Error: Ralph not initialized in this repository.', file=sys.stderr)
-        print('Run `ralph init` first to set up Ralph.', file=sys.stderr)
+        print('Error: Ralph is not initialized in this repository.', file=sys.stderr)
+        print('', file=sys.stderr)
+        print('The required file is missing:', file=sys.stderr)
+        print(f'  {runner_script}', file=sys.stderr)
+        print('', file=sys.stderr)
+        print('To fix this:', file=sys.stderr)
+        print('  1. Run: ralph init', file=sys.stderr)
+        print('  2. This will create the necessary files in scripts/ralph/', file=sys.stderr)
+        print('  3. Then you can run: ralph run', file=sys.stderr)
         sys.exit(1)
 
     # Execute the runner script, passing through all arguments
@@ -202,6 +227,24 @@ def handle_run(args):
         cwd=str(repo_root)
     )
     sys.exit(result.returncode)
+
+
+def _print_available_commands():
+    """Print available commands list."""
+    print('Available commands:', file=sys.stderr)
+    print('  init    Initialize Ralph in the current repository', file=sys.stderr)
+    print('  run     Run Ralph agent loop', file=sys.stderr)
+
+
+def _suggest_command(command):
+    """Suggest a command based on user input."""
+    if 'init' in command.lower() or 'i' in command.lower():
+        print('  Try: ralph init', file=sys.stderr)
+    elif 'run' in command.lower() or 'r' in command.lower():
+        print('  Try: ralph run', file=sys.stderr)
+    else:
+        print('  Try: ralph init  (to set up Ralph)', file=sys.stderr)
+        print('  Try: ralph run   (to run the agent loop)', file=sys.stderr)
 
 
 def print_help():
@@ -247,7 +290,12 @@ Examples:
 def main():
     """Main entry point."""
     if len(sys.argv) < 2:
-        print('Usage: ralph <init|run> [options]', file=sys.stderr)
+        print('Error: No command provided.', file=sys.stderr)
+        print('', file=sys.stderr)
+        print('Usage: ralph <command> [options]', file=sys.stderr)
+        print('', file=sys.stderr)
+        _print_available_commands()
+        print('', file=sys.stderr)
         print('Run "ralph --help" for more information.', file=sys.stderr)
         sys.exit(1)
 
@@ -264,9 +312,14 @@ def main():
     elif command == 'run':
         handle_run(args)
     else:
-        print(f'Unknown command: {command}', file=sys.stderr)
-        print('Usage: ralph <init|run> [options]', file=sys.stderr)
-        print('Run "ralph --help" for more information.', file=sys.stderr)
+        print(f'Error: Unknown command "{command}".', file=sys.stderr)
+        print('', file=sys.stderr)
+        _print_available_commands()
+        print('', file=sys.stderr)
+        print('Did you mean one of these?', file=sys.stderr)
+        _suggest_command(command)
+        print('', file=sys.stderr)
+        print('Run "ralph --help" for detailed usage information.', file=sys.stderr)
         sys.exit(1)
 
 

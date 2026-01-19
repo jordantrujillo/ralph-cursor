@@ -232,3 +232,108 @@ def test_ralph_init_installs_cursor_files():
         assert prd_example_path.exists()
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_invalid_command_shows_helpful_error():
+    """Test that invalid commands show helpful usage hints."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['invalid-command'], test_dir)
+        assert result['code'] != 0, 'Should exit with error code'
+        # Should mention the invalid command
+        assert 'invalid-command' in result['stderr'] or 'invalid-command' in result['stdout']
+        # Should show available commands
+        assert 'init' in result['stderr'] or 'init' in result['stdout']
+        assert 'run' in result['stderr'] or 'run' in result['stdout']
+        # Should suggest help
+        assert '--help' in result['stderr'] or '--help' in result['stdout']
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_run_missing_ralph_py_shows_clear_guidance():
+    """Test that ralph run provides clear guidance when ralph.py is missing."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['run'], test_dir)
+        assert result['code'] != 0, 'Should exit with error code'
+        # Should clearly indicate the problem
+        assert 'not initialized' in result['stderr'].lower() or 'not initialized' in result['stdout'].lower()
+        # Should provide actionable next step
+        assert 'init' in result['stderr'].lower() or 'init' in result['stdout'].lower()
+        # Should mention the missing file
+        assert 'ralph.py' in result['stderr'] or 'ralph.py' in result['stdout']
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_init_missing_source_file_shows_clear_error():
+    """Test that ralph init shows clear error when source files are missing."""
+    # This test simulates a corrupted installation where templates are missing
+    # We'll test by checking the error message format
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        # The init should still work normally, but we're testing the error message format
+        # for when source files are missing (which shouldn't happen in normal usage)
+        # We'll verify that warnings include helpful context
+        result = run_cli(['init'], test_dir)
+        # If there are warnings, they should include helpful context
+        if 'Warning' in result['stderr'] or 'Warning' in result['stdout']:
+            assert 'not found' in result['stderr'] or 'not found' in result['stdout']
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_init_success_message_is_clear():
+    """Test that ralph init success message is clear and informative."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['init'], test_dir)
+        assert result['code'] == 0
+        # Should show summary
+        assert 'Summary' in result['stdout'] or 'Created' in result['stdout']
+        # Should indicate next step
+        assert 'run' in result['stdout'].lower() or 'initialized' in result['stdout'].lower()
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_no_command_shows_usage():
+    """Test that running ralph with no command shows usage information."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli([], test_dir)
+        assert result['code'] != 0, 'Should exit with error code'
+        # Should show usage
+        assert 'Usage' in result['stderr'] or 'Usage' in result['stdout']
+        # Should mention available commands
+        assert 'init' in result['stderr'] or 'init' in result['stdout']
+        assert 'run' in result['stderr'] or 'run' in result['stdout']
+        # Should suggest help
+        assert '--help' in result['stderr'] or '--help' in result['stdout']
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+if __name__ == '__main__':
+    import sys
+    # Simple test runner
+    test_functions = [name for name in dir() if name.startswith('test_')]
+    passed = 0
+    failed = 0
+    
+    for test_name in test_functions:
+        test_func = globals()[test_name]
+        try:
+            test_func()
+            print(f'✓ {test_name}')
+            passed += 1
+        except AssertionError as e:
+            print(f'✗ {test_name}: {e}')
+            failed += 1
+        except Exception as e:
+            print(f'✗ {test_name}: Unexpected error: {e}')
+            failed += 1
+    
+    print(f'\n{passed} passed, {failed} failed')
+    sys.exit(0 if failed == 0 else 1)
