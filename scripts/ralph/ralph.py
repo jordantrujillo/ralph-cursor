@@ -89,10 +89,13 @@ class RalphAgent:
         # Fallback to Python with yaml if yq not available
         try:
             import yaml
-            with open(self.prd_file, 'r') as f:
+            with open(self.prd_file, 'r', encoding='utf-8') as f:
                 prd_data = yaml.safe_load(f)
                 return prd_data.get('branchName') if prd_data else None
-        except (ImportError, Exception):
+        except (ImportError, FileNotFoundError, PermissionError, yaml.YAMLError):
+            return None
+        except Exception:
+            # Log unexpected errors but don't crash
             return None
     
     def _archive_previous_run(self):
@@ -105,8 +108,11 @@ class RalphAgent:
             return
         
         try:
-            last_branch = self.last_branch_file.read_text().strip()
+            last_branch = self.last_branch_file.read_text(encoding='utf-8').strip()
         except FileNotFoundError:
+            last_branch = ""
+        except (OSError, PermissionError) as e:
+            print(f"Warning: Failed to read last branch file: {e}", file=sys.stderr)
             last_branch = ""
         
         if current_branch and last_branch and current_branch != last_branch:
@@ -117,34 +123,50 @@ class RalphAgent:
             archive_folder = self.archive_dir / f"{date}-{folder_name}"
             
             print(f"Archiving previous run: {last_branch}")
-            archive_folder.mkdir(parents=True, exist_ok=True)
-            
-            if self.prd_file.exists():
-                subprocess.run(["cp", str(self.prd_file), str(archive_folder)], check=False)
-            if self.progress_file.exists():
-                subprocess.run(["cp", str(self.progress_file), str(archive_folder)], check=False)
+            try:
+                archive_folder.mkdir(parents=True, exist_ok=True)
+                
+                if self.prd_file.exists():
+                    result = subprocess.run(["cp", str(self.prd_file), str(archive_folder)], check=False, capture_output=True)
+                    if result.returncode != 0:
+                        print(f"Warning: Failed to archive PRD file: {result.stderr.decode('utf-8', errors='ignore')}", file=sys.stderr)
+                if self.progress_file.exists():
+                    result = subprocess.run(["cp", str(self.progress_file), str(archive_folder)], check=False, capture_output=True)
+                    if result.returncode != 0:
+                        print(f"Warning: Failed to archive progress file: {result.stderr.decode('utf-8', errors='ignore')}", file=sys.stderr)
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Failed to create archive directory: {e}", file=sys.stderr)
             
             print(f"   Archived to: {archive_folder}")
             
             # Reset progress file for new run
-            with open(self.progress_file, 'w') as f:
-                f.write("# Ralph Progress Log\n")
-                f.write(f"Started: {datetime.now()}\n")
-                f.write("---\n")
+            try:
+                with open(self.progress_file, 'w', encoding='utf-8') as f:
+                    f.write("# Ralph Progress Log\n")
+                    f.write(f"Started: {datetime.now()}\n")
+                    f.write("---\n")
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Failed to reset progress file: {e}", file=sys.stderr)
     
     def _track_current_branch(self):
         """Track current branch"""
         current_branch = self._get_branch_name()
         if current_branch:
-            self.last_branch_file.write_text(current_branch)
+            try:
+                self.last_branch_file.write_text(current_branch, encoding='utf-8')
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Failed to track current branch: {e}", file=sys.stderr)
     
     def _initialize_progress_file(self):
         """Initialize progress file if it doesn't exist"""
         if not self.progress_file.exists():
-            with open(self.progress_file, 'w') as f:
-                f.write("# Ralph Progress Log\n")
-                f.write(f"Started: {datetime.now()}\n")
-                f.write("---\n")
+            try:
+                with open(self.progress_file, 'w', encoding='utf-8') as f:
+                    f.write("# Ralph Progress Log\n")
+                    f.write(f"Started: {datetime.now()}\n")
+                    f.write("---\n")
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Failed to initialize progress file: {e}", file=sys.stderr)
     
     def _find_cursor_binary(self):
         """Find the cursor binary, checking cursor-agent, then agent"""
@@ -158,7 +180,7 @@ class RalphAgent:
         """Run a single Cursor iteration"""
         proc = None
         try:
-            with open(prompt_file, 'r') as f:
+            with open(prompt_file, 'r', encoding='utf-8') as f:
                 prompt_text = f.read()
             
             # Build cursor command (prompt text will be passed as argument, matching bash behavior)

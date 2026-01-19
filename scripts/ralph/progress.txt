@@ -30,3 +30,19 @@ Started: 2026-01-18 12:02:33.930209
   - After installation commands, add a small delay (sleep 1) before verifying PATH to allow system to update
   - When installation fails, provide platform-specific troubleshooting steps (e.g., Homebrew check for macOS, sudo permissions for Linux)
 ---
+
+## 2026-01-18 - US-003
+- Implemented improved PATH detection and guidance for install.sh
+- Files changed:
+  - install.sh: Enhanced PATH detection with shell detection (bash, zsh, fish), platform-specific instructions (macOS vs Linux), automatic PATH addition with user confirmation, clear manual configuration instructions, works for both interactive and non-interactive shells
+  - tests/test_install.sh: Added comprehensive tests for shell detection (bash/zsh), PATH detection for interactive/non-interactive shells, platform-specific instructions, automatic PATH addition offer, and manual configuration instructions
+- **Learnings for future iterations:**
+  - Shell detection should check both `$SHELL` environment variable and fall back to checking for existing config files (~/.zshrc, ~/.bashrc, etc.)
+  - On macOS, bash typically uses ~/.bash_profile, while on Linux it uses ~/.bashrc - need platform-specific logic
+  - PATH detection should check both `:$PATH:` pattern matching AND verify command availability with `command -v` (works for non-interactive shells)
+  - When offering automatic PATH addition, check if config file exists and is writable before offering
+  - Always clean up test artifacts (remove existing binaries) before running tests to avoid "already exists" errors
+  - Tests should handle dependency prompts by providing input (e.g., `echo -e "n\nn"` for multiple prompts)
+  - For fish shell, use `fish_add_path` instead of `export PATH` for better compatibility
+  - When PATH is correctly configured, show success message with "Installation complete!" for test matching
+---

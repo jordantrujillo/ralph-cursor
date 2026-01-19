@@ -38,8 +38,16 @@ setup_test_env() {
 
 cleanup_test_env() {
   cd "$REPO_ROOT" || true
-  rm -rf "$TEST_DIR"
+  rm -rf "$TEST_DIR" 2>/dev/null || true
+  # Restore original environment variables if they were modified
+  unset HOME 2>/dev/null || true
+  unset PATH 2>/dev/null || true
+  unset OSTYPE 2>/dev/null || true
+  unset SHELL 2>/dev/null || true
 }
+
+# Set up trap to ensure cleanup on script exit
+trap cleanup_test_env EXIT INT TERM
 
 # Test: Missing bin/ralph.py should provide clear error message
 test_missing_ralph_script() {
@@ -823,6 +831,12 @@ run_tests() {
   local tests_passed=0
   local tests_failed=0
   
+  # Store original environment variables
+  ORIGINAL_HOME="${HOME:-}"
+  ORIGINAL_PATH="${PATH:-}"
+  ORIGINAL_OSTYPE="${OSTYPE:-}"
+  ORIGINAL_SHELL="${SHELL:-}"
+  
   if test_missing_ralph_script; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_permission_denied; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_missing_directories; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
@@ -841,6 +855,12 @@ run_tests() {
   if test_platform_specific_path_instructions; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_automatic_path_addition; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_manual_path_configuration_instructions; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  
+  # Restore original environment variables
+  export HOME="${ORIGINAL_HOME}"
+  export PATH="${ORIGINAL_PATH}"
+  export OSTYPE="${ORIGINAL_OSTYPE}"
+  export SHELL="${ORIGINAL_SHELL}"
   
   echo ""
   echo "========================================="

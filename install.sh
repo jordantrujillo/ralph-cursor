@@ -15,6 +15,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RALPH_SCRIPT="$SCRIPT_DIR/bin/ralph.py"
 INSTALL_NAME="ralph"
 
+# Validate HOME variable
+if [ -z "$HOME" ]; then
+    echo -e "${RED}Error: HOME environment variable is not set${NC}" >&2
+    echo "" >&2
+    echo "Next steps:" >&2
+    echo "  1. Set HOME environment variable: export HOME=\$HOME" >&2
+    echo "  2. Or specify HOME explicitly: HOME=/path/to/home $0" >&2
+    exit 1
+fi
+
 # Check if ralph.py exists
 if [ ! -f "$RALPH_SCRIPT" ]; then
     echo -e "${RED}Error: $RALPH_SCRIPT not found${NC}" >&2
@@ -61,12 +71,24 @@ INSTALL_PATH="$INSTALL_DIR/$INSTALL_NAME"
 
 # Check if already installed
 if [ -f "$INSTALL_PATH" ] || [ -L "$INSTALL_PATH" ]; then
-    echo -e "${YELLOW}Warning: $INSTALL_PATH already exists${NC}"
-    read -p "Overwrite? [y/N] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Installation cancelled."
-        exit 0
+    # Check if symlink is broken
+    if [ -L "$INSTALL_PATH" ] && [ ! -e "$INSTALL_PATH" ]; then
+        echo -e "${YELLOW}Warning: $INSTALL_PATH exists as a broken symlink${NC}"
+    else
+        echo -e "${YELLOW}Warning: $INSTALL_PATH already exists${NC}"
+    fi
+    
+    # Only prompt if running in interactive mode
+    if [ -t 0 ]; then
+        read -p "Overwrite? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Installation cancelled."
+            exit 0
+        fi
+    else
+        # Non-interactive mode: automatically overwrite
+        echo "Non-interactive mode: overwriting existing installation"
     fi
     rm -f "$INSTALL_PATH"
 fi
@@ -195,9 +217,21 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
         echo ""
         echo "After installing yq, re-run this install script."
     else
-        read -p "Would you like to install these dependencies? [y/N] " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        # Only prompt if running in interactive mode
+        if [ -t 0 ]; then
+            read -p "Would you like to install these dependencies? [y/N] " -n 1 -r
+            echo
+            INSTALL_DEPS=false
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                INSTALL_DEPS=true
+            fi
+        else
+            # Non-interactive mode: skip dependency installation
+            echo "Non-interactive mode: skipping dependency installation"
+            INSTALL_DEPS=false
+        fi
+        
+        if [ "$INSTALL_DEPS" = true ]; then
             echo ""
             echo -e "${YELLOW}Installing dependencies...${NC}"
             INSTALL_FAILED=0
@@ -219,6 +253,8 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
                     echo -e "  ${YELLOW}Running:${NC} $cmd"
                     
                     # Execute installation command
+                    # Note: eval is used here because commands may contain && operators
+                    # Commands are controlled by the script, so this is safe
                     if eval "$cmd" 2>&1; then
                         INSTALL_EXIT_CODE=$?
                     else
@@ -355,8 +391,11 @@ fi
 
 # Check if install directory is in PATH
 PATH_INCLUDES_INSTALL_DIR=false
-if [[ ":$PATH:" == *":$INSTALL_DIR:"* ]]; then
-    PATH_INCLUDES_INSTALL_DIR=true
+# Handle case where PATH might be unset
+if [ -n "${PATH:-}" ]; then
+    if [[ ":$PATH:" == *":$INSTALL_DIR:"* ]]; then
+        PATH_INCLUDES_INSTALL_DIR=true
+    fi
 fi
 
 # Also check if command is available (works for both interactive and non-interactive shells)
@@ -401,14 +440,30 @@ if [ "$PATH_INCLUDES_INSTALL_DIR" = false ]; then
         if [ -f "$SHELL_CONFIG_FILE" ] && [ -w "$SHELL_CONFIG_FILE" ]; then
             # Check if PATH is already in config file
             if ! grep -q "PATH.*$INSTALL_DIR" "$SHELL_CONFIG_FILE" 2>/dev/null; then
-                read -p "Would you like to add $INSTALL_DIR to your PATH automatically? [y/N] " -n 1 -r
-                echo
-                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                # Only prompt if running in interactive mode
+                ADD_PATH=false
+                if [ -t 0 ]; then
+                    read -p "Would you like to add $INSTALL_DIR to your PATH automatically? [y/N] " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                        ADD_PATH=true
+                    fi
+                else
+                    # Non-interactive mode: skip automatic PATH addition
+                    ADD_PATH=false
+                fi
+                
+                if [ "$ADD_PATH" = true ]; then
                     echo ""
                     echo "Adding PATH to $SHELL_CONFIG_FILE..."
                     echo "" >> "$SHELL_CONFIG_FILE"
                     echo "# Added by Ralph install script" >> "$SHELL_CONFIG_FILE"
-                    echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$SHELL_CONFIG_FILE"
+                    # Use fish_add_path for fish shell, export PATH for others
+                    if [ "$DETECTED_SHELL" = "fish" ]; then
+                        echo "fish_add_path $INSTALL_DIR" >> "$SHELL_CONFIG_FILE"
+                    else
+                        echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$SHELL_CONFIG_FILE"
+                    fi
                     echo -e "${GREEN}✓ Added PATH to $SHELL_CONFIG_FILE${NC}"
                     echo ""
                     echo "To use Ralph immediately, run:"
