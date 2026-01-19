@@ -171,7 +171,7 @@ phases:
           - Typecheck passes
           - Security report is written/saved to "tasks/improve-install-script-and-cli/security-report-phase-2.md"
         priority: 5
-        passes: false
+        passes: true
         notes: 
       - id: US-012
         title: Test Review - Quality Assurance

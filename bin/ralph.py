@@ -257,11 +257,38 @@ def handle_run(args):
         print('  3. Then you can run: ralph run', file=sys.stderr)
         sys.exit(1)
 
+    # Security: Verify the runner script is actually a Python file
+    # This prevents executing malicious files if the path is compromised
+    runner_script_resolved = runner_script.resolve()
+    if not runner_script_resolved.is_file():
+        print('Error: Runner script path is not a file:', file=sys.stderr)
+        print(f'  {runner_script}', file=sys.stderr)
+        sys.exit(1)
+    
+    # Security: Basic validation - ensure it's a Python script
+    try:
+        if not runner_script_resolved.suffix == '.py':
+            print('Error: Runner script does not have .py extension:', file=sys.stderr)
+            print(f'  {runner_script}', file=sys.stderr)
+            sys.exit(1)
+    except Exception:
+        pass  # If we can't check, continue (defensive)
+
+    # Security: Validate args don't contain obviously malicious patterns
+    # Since we use list form (not shell=True), subprocess properly escapes args
+    # But we add basic validation for defense in depth
+    for arg in args:
+        # Check for null bytes (would be rejected by subprocess anyway, but explicit is better)
+        if '\x00' in arg:
+            print('Error: Invalid argument (contains null byte)', file=sys.stderr)
+            sys.exit(1)
+
     # Execute the runner script, passing through all arguments
     # scripts/ralph/ralph.py accepts: [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
+    # Security: Using list form (not shell=True) prevents command injection
     try:
         result = subprocess.run(
-            ['python3', str(runner_script)] + args,
+            ['python3', str(runner_script_resolved)] + args,
             cwd=str(repo_root)
         )
         sys.exit(result.returncode)
@@ -309,6 +336,29 @@ def handle_uninstall(args):
         print('This is unexpected. Please manually remove the directory if needed.', file=sys.stderr)
         sys.exit(1)
     
+    # Security: Verify this is actually a Python script (basic validation)
+    # Security: Verify the file is a Python script to prevent removing wrong files
+    # This is a basic check - if PATH is compromised, this provides some protection
+    try:
+        if ralph_path.is_file():
+            # Check if it starts with Python shebang (basic verification)
+            with open(ralph_path, 'rb') as f:
+                first_line = f.read(100)  # Read first 100 bytes
+                if not first_line.startswith(b'#!/usr/bin/env python3') and not first_line.startswith(b'#!/usr/bin/python3'):
+                    print('Warning: The file found in PATH does not appear to be a Python script.', file=sys.stderr)
+                    print(f'  Found: {ralph_path_str}', file=sys.stderr)
+                    print('', file=sys.stderr)
+                    print('This may not be the Ralph CLI. For safety, uninstall was aborted.', file=sys.stderr)
+                    print('', file=sys.stderr)
+                    print('If you are sure this is the correct file, remove it manually.', file=sys.stderr)
+                    sys.exit(1)
+    except (PermissionError, OSError) as e:
+        print('Warning: Could not verify file contents:', file=sys.stderr)
+        print(f'  {e}', file=sys.stderr)
+        print('', file=sys.stderr)
+        print('Uninstall was aborted for safety.', file=sys.stderr)
+        sys.exit(1)
+    
     # Remove the file or symlink
     try:
         ralph_path.unlink()
@@ -353,7 +403,17 @@ def handle_version(args):
             pass
     if not version:
         version = '1.0.0'
+    
+    # Security: Sanitize version string to prevent terminal escape sequence injection
+    # Remove control characters and limit length
+    import re
     version_clean = version.lstrip('v')
+    # Remove control characters (0x00-0x1F, 0x7F) except newline/tab
+    version_clean = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]', '', version_clean)
+    # Limit length to prevent extremely long strings
+    if len(version_clean) > 50:
+        version_clean = version_clean[:50]
+    
     print(f'Ralph CLI v{version_clean}')
 
 def _print_available_commands():

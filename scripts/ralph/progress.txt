@@ -165,3 +165,22 @@ Started: 2026-01-18 12:02:33.930209
   - Edge case analysis should follow same format as previous phases for consistency
   - Use python3 -m py_compile for syntax checking when no formal typechecker is configured
 ---
+
+## 2026-01-18 - US-011
+- Completed comprehensive security review for Phase 2 CLI improvements
+- Files changed:
+  - bin/ralph.py: Fixed 2 critical security issues (uninstall binary verification, runner script path validation), fixed 2 medium issues (version string sanitization, subprocess argument validation)
+  - tasks/improve-install-script-and-cli/security-report-phase-2.md: Created comprehensive security report documenting all findings, fixes, and remaining acceptable risks
+- **Learnings for future iterations:**
+  - Always verify binaries before removal - check file type and shebang to prevent removing wrong files
+  - Validate file paths before execution - check file type, extension, and resolve symlinks
+  - Sanitize all user-controlled strings before display - remove control characters and limit length to prevent terminal escape sequence injection
+  - Use subprocess.run() with list form (not shell=True) to prevent command injection - arguments are properly escaped
+  - Add basic argument validation (null byte check) for defense in depth even when using safe subprocess patterns
+  - Binary verification should check shebang for Python scripts - read first 100 bytes and verify Python shebang pattern
+  - Path resolution with .resolve() prevents symlink attacks - always resolve paths before file operations
+  - Version strings from files should be sanitized - remove control characters and limit length even if only displayed
+  - Security reviews should fix critical issues, document medium/minor issues, and document acceptable risks
+  - Follow same security review format as previous phases for consistency
+  - Operational security issues (like PATH compromise) are different from code vulnerabilities - document but don't fix in code
+---
