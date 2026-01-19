@@ -127,21 +127,50 @@ echo -e "${GREEN}✓ Made executable${NC}"
 echo ""
 echo "Checking dependencies..."
 
+# Detect platform more reliably
+DETECTED_PLATFORM=""
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    DETECTED_PLATFORM="macos"
+elif [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "linux"* ]]; then
+    DETECTED_PLATFORM="linux"
+else
+    DETECTED_PLATFORM="unsupported"
+fi
+
 # List missing dependencies
 MISSING_DEPS=()
 DEP_INSTALL_COMMANDS=()
+DEP_INSTALL_DESCRIPTIONS=()
 
+# Check for yq
 if ! command -v yq >/dev/null 2>&1; then
     MISSING_DEPS+=("yq")
-    if [[ "$OSTYPE" == "darwin"* ]]; then
+    if [ "$DETECTED_PLATFORM" = "macos" ]; then
         DEP_INSTALL_COMMANDS+=("brew install yq")
-    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        DEP_INSTALL_COMMANDS+=("sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && sudo chmod +x /usr/local/bin/yq")
+        DEP_INSTALL_DESCRIPTIONS+=("Installing yq via Homebrew...")
+    elif [ "$DETECTED_PLATFORM" = "linux" ]; then
+        # Detect architecture for Linux
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "x86_64" ]; then
+            ARCH="amd64"
+        elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+            ARCH="arm64"
+        else
+            ARCH="amd64"  # Default fallback
+        fi
+        DEP_INSTALL_COMMANDS+=("sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} && sudo chmod +x /usr/local/bin/yq")
+        DEP_INSTALL_DESCRIPTIONS+=("Downloading yq for Linux ($ARCH)...")
     else
-        DEP_INSTALL_COMMANDS+=("# Visit https://github.com/mikefarah/yq/releases or use: pip install pyyaml")
+        DEP_INSTALL_COMMANDS+=("# Unsupported platform - manual installation required")
+        DEP_INSTALL_DESCRIPTIONS+=("Manual installation required for unsupported platform")
     fi
 else
     echo -e "${GREEN}✓ yq is installed${NC}"
+    # Verify yq works
+    if yq --version >/dev/null 2>&1; then
+        YQ_VERSION=$(yq --version 2>/dev/null | head -n1 || echo "unknown")
+        echo -e "  Version: $YQ_VERSION"
+    fi
 fi
 
 # Ask to install missing dependencies
@@ -152,35 +181,125 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
         echo "  - $dep"
     done
     echo ""
-    read -p "Would you like to install these dependencies? [y/N] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    
+    # Provide platform-specific guidance for unsupported platforms
+    if [ "$DETECTED_PLATFORM" = "unsupported" ]; then
+        echo -e "${YELLOW}Platform not automatically supported: $OSTYPE${NC}"
         echo ""
-        echo "Installing dependencies..."
-        for i in "${!MISSING_DEPS[@]}"; do
-            dep="${MISSING_DEPS[$i]}"
-            cmd="${DEP_INSTALL_COMMANDS[$i]}"
-            echo -e "${YELLOW}Installing $dep...${NC}"
-            if [[ "$cmd" == "#"* ]]; then
-                echo "  $cmd"
-            else
-                eval "$cmd" || {
-                    echo -e "${RED}Failed to install $dep${NC}" >&2
-                    echo "  You can install it manually with: $cmd" >&2
-                }
-            fi
-        done
+        echo "Next steps:"
+        echo "  1. Visit https://github.com/mikefarah/yq/releases to download yq for your platform"
+        echo "  2. Or install via package manager:"
+        echo "     - pip: pip install pyyaml"
+        echo "     - npm: npm install -g yq"
+        echo "     - Check your system's package manager for yq"
         echo ""
-        echo -e "${GREEN}Dependency installation complete${NC}"
+        echo "After installing yq, re-run this install script."
     else
-        echo ""
-        echo -e "${YELLOW}Skipping dependency installation${NC}"
-        echo "You can install them manually:"
-        for i in "${!MISSING_DEPS[@]}"; do
-            dep="${MISSING_DEPS[$i]}"
-            cmd="${DEP_INSTALL_COMMANDS[$i]}"
-            echo "  $dep: $cmd"
-        done
+        read -p "Would you like to install these dependencies? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo ""
+            echo -e "${YELLOW}Installing dependencies...${NC}"
+            INSTALL_FAILED=0
+            
+            for i in "${!MISSING_DEPS[@]}"; do
+                dep="${MISSING_DEPS[$i]}"
+                cmd="${DEP_INSTALL_COMMANDS[$i]}"
+                desc="${DEP_INSTALL_DESCRIPTIONS[$i]:-Installing $dep...}"
+                
+                echo ""
+                echo -e "${YELLOW}[$((i+1))/${#MISSING_DEPS[@]}] $desc${NC}"
+                
+                if [[ "$cmd" == "#"* ]]; then
+                    echo -e "${YELLOW}  Manual installation required:${NC}"
+                    echo "  ${cmd#\# }"
+                    INSTALL_FAILED=1
+                else
+                    # Show progress indicator
+                    echo -e "  ${YELLOW}Running:${NC} $cmd"
+                    
+                    # Execute installation command
+                    if eval "$cmd" 2>&1; then
+                        INSTALL_EXIT_CODE=$?
+                    else
+                        INSTALL_EXIT_CODE=$?
+                    fi
+                    
+                    # Verify installation succeeded
+                    if [ $INSTALL_EXIT_CODE -eq 0 ]; then
+                        # Wait a moment for PATH to update
+                        sleep 1
+                        
+                        # Verify the dependency is now available
+                        if command -v "$dep" >/dev/null 2>&1; then
+                            echo -e "  ${GREEN}✓ $dep installed successfully${NC}"
+                            # Show version if available
+                            if "$dep" --version >/dev/null 2>&1; then
+                                VERSION=$("$dep" --version 2>/dev/null | head -n1 || echo "unknown")
+                                echo -e "  ${GREEN}  Version: $VERSION${NC}"
+                            fi
+                        else
+                            echo -e "  ${YELLOW}⚠ Installation command succeeded, but $dep not found in PATH${NC}"
+                            echo -e "  ${YELLOW}  You may need to restart your terminal or run: source ~/.bashrc${NC}"
+                        fi
+                    else
+                        echo -e "  ${RED}✗ Failed to install $dep (exit code: $INSTALL_EXIT_CODE)${NC}" >&2
+                        echo "" >&2
+                        echo "  Next steps:" >&2
+                        echo "    1. Check the error message above" >&2
+                        echo "    2. Try installing manually: $cmd" >&2
+                        if [ "$DETECTED_PLATFORM" = "macos" ]; then
+                            echo "    3. Ensure Homebrew is installed: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"" >&2
+                        elif [ "$DETECTED_PLATFORM" = "linux" ]; then
+                            echo "    3. Check if you have sudo permissions" >&2
+                            echo "    4. Try alternative: wget -qO ~/.local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} && chmod +x ~/.local/bin/yq" >&2
+                        fi
+                        INSTALL_FAILED=1
+                    fi
+                fi
+            done
+            
+            echo ""
+            if [ $INSTALL_FAILED -eq 0 ]; then
+                echo -e "${GREEN}✓ Dependency installation complete${NC}"
+                
+                # Final verification of all dependencies
+                echo ""
+                echo "Verifying installed dependencies..."
+                ALL_DEPS_OK=true
+                for dep in "${MISSING_DEPS[@]}"; do
+                    if command -v "$dep" >/dev/null 2>&1; then
+                        echo -e "${GREEN}✓ $dep is available${NC}"
+                    else
+                        echo -e "${YELLOW}⚠ $dep is not available in PATH${NC}"
+                        ALL_DEPS_OK=false
+                    fi
+                done
+                
+                if [ "$ALL_DEPS_OK" = false ]; then
+                    echo ""
+                    echo -e "${YELLOW}Note: Some dependencies may not be in your PATH yet.${NC}"
+                    echo "  Try restarting your terminal or running: source ~/.bashrc (or ~/.zshrc)"
+                fi
+            else
+                echo -e "${YELLOW}⚠ Some dependencies failed to install${NC}"
+                echo "  You can install them manually using the commands shown above"
+            fi
+        else
+            echo ""
+            echo -e "${YELLOW}Skipping dependency installation${NC}"
+            echo ""
+            echo "You can install them manually:"
+            for i in "${!MISSING_DEPS[@]}"; do
+                dep="${MISSING_DEPS[$i]}"
+                cmd="${DEP_INSTALL_COMMANDS[$i]}"
+                if [[ "$cmd" != "#"* ]]; then
+                    echo "  $dep: $cmd"
+                else
+                    echo "  $dep: ${cmd#\# }"
+                fi
+            done
+        fi
     fi
 fi
 

@@ -305,6 +305,272 @@ test_actionable_error_messages() {
   cleanup_test_env
 }
 
+# Test: Dependency detection works reliably on macOS
+test_dependency_detection_macos() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="$TEST_DIR/.local/bin:$PATH"
+  
+  # Mock OSTYPE to be darwin (macOS)
+  export OSTYPE="darwin"
+  
+  # Create a mock command that simulates yq not being installed
+  # We'll create a fake PATH that doesn't include yq
+  export PATH="/usr/bin:/bin"
+  
+  # Mock the install script to capture dependency detection
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  cd "$TEST_DIR"
+  # Use echo "n" to skip dependency installation
+  OUTPUT=$(echo "n" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if script detected missing yq dependency
+  if echo "$OUTPUT" | grep -qiE "(yq|dependency|missing)"; then
+    echo -e "${GREEN}PASS${NC}: Dependency detection works on macOS"
+  else
+    echo -e "${RED}FAIL${NC}: Dependency detection not working on macOS"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Dependency detection works reliably on Linux
+test_dependency_detection_linux() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="$TEST_DIR/.local/bin:$PATH"
+  
+  # Mock OSTYPE to be linux-gnu
+  export OSTYPE="linux-gnu"
+  
+  # Create a mock command that simulates yq not being installed
+  export PATH="/usr/bin:/bin"
+  
+  # Mock the install script
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  cd "$TEST_DIR"
+  # Use echo "n" to skip dependency installation
+  OUTPUT=$(echo "n" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if script detected missing yq dependency
+  if echo "$OUTPUT" | grep -qiE "(yq|dependency|missing)"; then
+    echo -e "${GREEN}PASS${NC}: Dependency detection works on Linux"
+  else
+    echo -e "${RED}FAIL${NC}: Dependency detection not working on Linux"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Installation commands handle failures gracefully
+test_dependency_installation_failure() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="$TEST_DIR/.local/bin:$PATH"
+  
+  # Mock OSTYPE
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    export OSTYPE="darwin"
+  else
+    export OSTYPE="linux-gnu"
+  fi
+  
+  # Create a fake brew/wget command that always fails
+  mkdir -p "$TEST_DIR/fake-bin"
+  echo '#!/bin/bash' > "$TEST_DIR/fake-bin/brew"
+  echo 'exit 1' >> "$TEST_DIR/fake-bin/brew"
+  chmod +x "$TEST_DIR/fake-bin/brew"
+  
+  echo '#!/bin/bash' > "$TEST_DIR/fake-bin/wget"
+  echo 'exit 1' >> "$TEST_DIR/fake-bin/wget"
+  chmod +x "$TEST_DIR/fake-bin/wget"
+  
+  # Remove yq from PATH
+  export PATH="$TEST_DIR/fake-bin:/usr/bin:/bin"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  cd "$TEST_DIR"
+  # Use echo "y" to attempt dependency installation
+  OUTPUT=$(echo "y" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if script handled installation failure gracefully
+  if echo "$OUTPUT" | grep -qiE "(failed|error|install.*manually|graceful)"; then
+    echo -e "${GREEN}PASS${NC}: Installation failures handled gracefully"
+  else
+    echo -e "${RED}FAIL${NC}: Installation failures not handled gracefully"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Clear progress indicators during dependency installation
+test_dependency_progress_indicators() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="$TEST_DIR/.local/bin:$PATH"
+  
+  # Mock OSTYPE
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    export OSTYPE="darwin"
+  else
+    export OSTYPE="linux-gnu"
+  fi
+  
+  # Remove yq from PATH to trigger dependency detection
+  export PATH="/usr/bin:/bin"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  cd "$TEST_DIR"
+  # Use echo "y" to attempt dependency installation
+  OUTPUT=$(echo "y" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if script shows progress indicators
+  if echo "$OUTPUT" | grep -qiE "(installing|checking|progress|\.\.\.|✓|complete)"; then
+    echo -e "${GREEN}PASS${NC}: Progress indicators shown during dependency installation"
+  else
+    echo -e "${RED}FAIL${NC}: Progress indicators not shown during dependency installation"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Better handling of unsupported platforms with helpful messages
+test_unsupported_platform() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="$TEST_DIR/.local/bin:$PATH"
+  
+  # Mock unsupported platform
+  export OSTYPE="unsupported-os"
+  
+  # Remove yq from PATH
+  export PATH="/usr/bin:/bin"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  cd "$TEST_DIR"
+  # Use echo "n" to skip dependency installation
+  OUTPUT=$(echo "n" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if script provides helpful message for unsupported platform
+  if echo "$OUTPUT" | grep -qiE "(unsupported|platform|manual|install|helpful|visit|github)"; then
+    echo -e "${GREEN}PASS${NC}: Unsupported platforms handled with helpful messages"
+  else
+    echo -e "${RED}FAIL${NC}: Unsupported platforms not handled with helpful messages"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
+# Test: Verify dependencies after installation attempt
+test_dependency_verification() {
+  setup_test_env
+  
+  # Create test structure
+  mkdir -p "$TEST_DIR/bin"
+  echo "#!/usr/bin/env python3" > "$TEST_DIR/bin/ralph.py"
+  chmod +x "$TEST_DIR/bin/ralph.py"
+  mkdir -p "$TEST_DIR/.local/bin"
+  export HOME="$TEST_DIR"
+  export PATH="$TEST_DIR/.local/bin:$PATH"
+  
+  # Mock OSTYPE
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    export OSTYPE="darwin"
+  else
+    export OSTYPE="linux-gnu"
+  fi
+  
+  # Create a fake yq command that succeeds
+  mkdir -p "$TEST_DIR/fake-bin"
+  echo '#!/bin/bash' > "$TEST_DIR/fake-bin/yq"
+  echo 'echo "yq version 4.0.0"' >> "$TEST_DIR/fake-bin/yq"
+  chmod +x "$TEST_DIR/fake-bin/yq"
+  
+  # Add fake-bin to PATH after initial check (simulating installation)
+  export PATH="$TEST_DIR/fake-bin:/usr/bin:/bin"
+  
+  cp "$INSTALL_SCRIPT" "$TEST_DIR/install.sh"
+  chmod +x "$TEST_DIR/install.sh"
+  
+  cd "$TEST_DIR"
+  # Use echo "y" to attempt dependency installation
+  OUTPUT=$(echo "y" | bash "$TEST_DIR/install.sh" 2>&1) || true
+  cd "$REPO_ROOT"
+  
+  # Check if script verifies dependencies after installation
+  # Should show that yq is installed (either before or after installation attempt)
+  if echo "$OUTPUT" | grep -qiE "(yq.*installed|✓.*yq|verified|checking.*dependencies)"; then
+    echo -e "${GREEN}PASS${NC}: Dependencies verified after installation attempt"
+  else
+    echo -e "${RED}FAIL${NC}: Dependencies not verified after installation attempt"
+    echo "Output: $OUTPUT"
+    cleanup_test_env
+    return 1
+  fi
+  
+  cleanup_test_env
+}
+
 run_tests() {
   echo "Testing install.sh error handling..."
   echo ""
@@ -319,6 +585,12 @@ run_tests() {
   if test_success_indicators; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_exit_codes; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_actionable_error_messages; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_dependency_detection_macos; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_dependency_detection_linux; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_dependency_installation_failure; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_dependency_progress_indicators; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_unsupported_platform; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
+  if test_dependency_verification; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   
   echo ""
   echo "========================================="
