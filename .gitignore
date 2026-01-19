@@ -13,4 +13,3 @@ progress.txt
 __pycache__/
 *.py[cod]
 *$py.class
-scripts/ralph/__pycache__/
