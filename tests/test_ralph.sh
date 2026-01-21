@@ -47,11 +47,8 @@ setup_test_env() {
     cp "$CURRENT_SOURCE_DIR/ralph.py" "$runner_dir/ralph.py"
     cp "$CURRENT_SOURCE_DIR/prd.yml.example" "$runner_dir/prd.yml.example"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.cursor.md" "$runner_dir/cursor/prompt.cursor.md"
-    cp "$CURRENT_SOURCE_DIR/cursor/prompt.convert-to-prd-yml.md" "$runner_dir/cursor/prompt.convert-to-prd-yml.md"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.cursor.test.md" "$runner_dir/cursor/prompt.cursor.test.md" 2>/dev/null || true
-    cp "$CURRENT_SOURCE_DIR/cursor/convert-to-prd-yml.sh" "$runner_dir/cursor/convert-to-prd-yml.sh"
     chmod +x "$runner_dir/ralph.py"
-    chmod +x "$runner_dir/cursor/convert-to-prd-yml.sh"
     RALPH_PY_SCRIPT="$runner_dir/ralph.py"
     RALPH_WORK_DIR="$runner_dir"
   else
@@ -171,33 +168,6 @@ test_cursor_no_pty() {
   cleanup_test_env
 }
 
-test_convert_prd_yml_model_override() {
-  setup_test_env
-
-  mkdir -p "$TEST_DIR/project/tasks"
-  echo "# PRD: Example" > "$TEST_DIR/project/tasks/prd-example.md"
-
-  local convert_script="$RALPH_WORK_DIR/cursor/convert-to-prd-yml.sh"
-  if [[ ! -f "$convert_script" ]]; then
-    echo -e "${RED}FAIL${NC}: convert-to-prd-yml.sh not found"
-    cleanup_test_env
-    return 1
-  fi
-
-  OUTPUT=$(bash "$convert_script" "$TEST_DIR/project/tasks/prd-example.md" --model "gpt-4.1" 2>&1 || true)
-
-  if echo "$OUTPUT" | grep -qF -- "--model gpt-4.1"; then
-    echo -e "${GREEN}PASS${NC}: convert-to-prd-yml.sh forwards --model override"
-  else
-    echo -e "${RED}FAIL${NC}: convert-to-prd-yml.sh did not forward --model override"
-    echo "Output: $OUTPUT"
-    cleanup_test_env
-    return 1
-  fi
-
-  cleanup_test_env
-}
-
 test_stop_condition_complete() {
   setup_test_env
 
@@ -299,7 +269,6 @@ run_tests() {
   if test_cursor_worker; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_cursor_invocation_flags; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_cursor_no_pty; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_convert_prd_yml_model_override; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_stop_condition_complete; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_stop_condition_no_complete; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_progress_append_only; then ((tests_passed+=1)); else ((tests_failed+=1)); fi

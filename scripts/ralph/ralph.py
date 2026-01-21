@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 Ralph Wiggum - Long-running AI agent loop
-Usage: ./ralph.py [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
+Usage: ./ralph.py [max_iterations] [--cursor-timeout SECONDS] [--model MODEL] [--debug]
 or set RALPH_MODEL environment variable
 Default model is 'auto' if not specified
 Uses Cursor CLI as the worker
+--debug enables real-time output streaming for debugging
 """
 
 import argparse
@@ -18,10 +19,11 @@ from pathlib import Path
 
 
 class RalphAgent:
-    def __init__(self, max_iterations=10, cursor_timeout=1800, model="auto"):
+    def __init__(self, max_iterations=10, cursor_timeout=1800, model="auto", debug=False):
         self.max_iterations = max_iterations
         self.cursor_timeout = cursor_timeout
         self.model = model
+        self.debug = debug
         self.running_processes = []
         self.interrupted = False
         
@@ -35,6 +37,7 @@ class RalphAgent:
         self.progress_file = self.script_dir / "progress.txt"
         self.archive_dir = self.script_dir / "archive"
         self.last_branch_file = self.script_dir / ".last-branch"
+        self.log_dir = self.script_dir / "logs"
     
     def _signal_handler(self, signum, frame):
         """Handle Ctrl+C and other termination signals"""
@@ -43,7 +46,7 @@ class RalphAgent:
         # Only kill processes if the list exists (defensive check)
         if hasattr(self, 'running_processes'):
             self._kill_all_processes()
-        sys.exit(130)  # Standard exit code for SIGINT
+        # Don't call sys.exit here - let the main loop handle cleanup and exit
     
     def _kill_all_processes(self):
         """Kill all running subprocesses"""
@@ -64,7 +67,11 @@ class RalphAgent:
         self.running_processes.clear()
     
     def _get_branch_name(self):
-        """Get branch name from PRD file using yq or Python fallback"""
+        """Get top-level branch name from PRD file using yq or Python fallback.
+        
+        Note: This returns the feature-level branchName, not phase-specific branches.
+        Phase-specific branches are handled by the Cursor prompt.
+        """
         if not self.prd_file.exists():
             return None
         
@@ -85,10 +92,13 @@ class RalphAgent:
         # Fallback to Python with yaml if yq not available
         try:
             import yaml
-            with open(self.prd_file, 'r') as f:
+            with open(self.prd_file, 'r', encoding='utf-8') as f:
                 prd_data = yaml.safe_load(f)
                 return prd_data.get('branchName') if prd_data else None
-        except (ImportError, Exception):
+        except (ImportError, FileNotFoundError, PermissionError, yaml.YAMLError):
+            return None
+        except Exception:
+            # Log unexpected errors but don't crash
             return None
     
     def _archive_previous_run(self):
@@ -101,8 +111,11 @@ class RalphAgent:
             return
         
         try:
-            last_branch = self.last_branch_file.read_text().strip()
+            last_branch = self.last_branch_file.read_text(encoding='utf-8').strip()
         except FileNotFoundError:
+            last_branch = ""
+        except (OSError, PermissionError) as e:
+            print(f"Warning: Failed to read last branch file: {e}", file=sys.stderr)
             last_branch = ""
         
         if current_branch and last_branch and current_branch != last_branch:
@@ -110,37 +123,62 @@ class RalphAgent:
             date = datetime.now().strftime("%Y-%m-%d")
             # Strip "ralph/" prefix from branch name for folder
             folder_name = last_branch.replace("ralph/", "")
+            
+            # Security: Sanitize folder_name to prevent path traversal attacks
+            # Only allow alphanumeric, dash, underscore, and dot characters
+            import re
+            folder_name = re.sub(r'[^a-zA-Z0-9\-_.]', '_', folder_name)
+            # Prevent directory traversal attempts
+            if '..' in folder_name or '/' in folder_name or '\\' in folder_name:
+                folder_name = folder_name.replace('..', '_').replace('/', '_').replace('\\', '_')
+            
             archive_folder = self.archive_dir / f"{date}-{folder_name}"
             
             print(f"Archiving previous run: {last_branch}")
-            archive_folder.mkdir(parents=True, exist_ok=True)
-            
-            if self.prd_file.exists():
-                subprocess.run(["cp", str(self.prd_file), str(archive_folder)], check=False)
-            if self.progress_file.exists():
-                subprocess.run(["cp", str(self.progress_file), str(archive_folder)], check=False)
+            try:
+                archive_folder.mkdir(parents=True, exist_ok=True)
+                
+                if self.prd_file.exists():
+                    result = subprocess.run(["cp", str(self.prd_file), str(archive_folder)], check=False, capture_output=True)
+                    if result.returncode != 0:
+                        print(f"Warning: Failed to archive PRD file: {result.stderr.decode('utf-8', errors='ignore')}", file=sys.stderr)
+                if self.progress_file.exists():
+                    result = subprocess.run(["cp", str(self.progress_file), str(archive_folder)], check=False, capture_output=True)
+                    if result.returncode != 0:
+                        print(f"Warning: Failed to archive progress file: {result.stderr.decode('utf-8', errors='ignore')}", file=sys.stderr)
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Failed to create archive directory: {e}", file=sys.stderr)
             
             print(f"   Archived to: {archive_folder}")
             
             # Reset progress file for new run
-            with open(self.progress_file, 'w') as f:
-                f.write("# Ralph Progress Log\n")
-                f.write(f"Started: {datetime.now()}\n")
-                f.write("---\n")
+            try:
+                with open(self.progress_file, 'w', encoding='utf-8') as f:
+                    f.write("# Ralph Progress Log\n")
+                    f.write(f"Started: {datetime.now()}\n")
+                    f.write("---\n")
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Failed to reset progress file: {e}", file=sys.stderr)
     
     def _track_current_branch(self):
         """Track current branch"""
         current_branch = self._get_branch_name()
         if current_branch:
-            self.last_branch_file.write_text(current_branch)
+            try:
+                self.last_branch_file.write_text(current_branch, encoding='utf-8')
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Failed to track current branch: {e}", file=sys.stderr)
     
     def _initialize_progress_file(self):
         """Initialize progress file if it doesn't exist"""
         if not self.progress_file.exists():
-            with open(self.progress_file, 'w') as f:
-                f.write("# Ralph Progress Log\n")
-                f.write(f"Started: {datetime.now()}\n")
-                f.write("---\n")
+            try:
+                with open(self.progress_file, 'w', encoding='utf-8') as f:
+                    f.write("# Ralph Progress Log\n")
+                    f.write(f"Started: {datetime.now()}\n")
+                    f.write("---\n")
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Failed to initialize progress file: {e}", file=sys.stderr)
     
     def _find_cursor_binary(self):
         """Find the cursor binary, checking cursor-agent, then agent"""
@@ -150,14 +188,36 @@ class RalphAgent:
         # Raise error if neither binary is found
         raise FileNotFoundError("Neither 'cursor-agent' nor 'agent' binary found in PATH")
     
-    def _run_cursor_iteration(self, prompt_file):
+    def _run_cursor_iteration(self, prompt_file, iteration=None):
         """Run a single Cursor iteration"""
         proc = None
+        log_file = None
         try:
-            with open(prompt_file, 'r') as f:
+            # Security: Validate prompt_file path to prevent path traversal
+            prompt_file_path = Path(prompt_file)
+            if not prompt_file_path.is_absolute():
+                prompt_file_path = self.script_dir / prompt_file_path
+            prompt_file_path = prompt_file_path.resolve()
+            
+            # Ensure the prompt file is within the script directory to prevent path traversal
+            try:
+                prompt_file_path.relative_to(self.script_dir.resolve())
+            except ValueError:
+                raise ValueError(f"Prompt file path outside script directory: {prompt_file_path}")
+            
+            if not prompt_file_path.exists():
+                raise FileNotFoundError(f"Prompt file not found: {prompt_file_path}")
+            
+            with open(prompt_file_path, 'r', encoding='utf-8') as f:
                 prompt_text = f.read()
             
+            # Security: Validate model parameter to prevent command injection
+            # Model should only contain alphanumeric, dash, underscore, and dot
+            if not all(c.isalnum() or c in ['-', '_', '.'] for c in self.model):
+                raise ValueError(f"Invalid model name: {self.model}")
+            
             # Build cursor command (prompt text will be passed as argument, matching bash behavior)
+            # Security: Using list form of subprocess.Popen (not shell=True) prevents command injection
             cursor_binary = self._find_cursor_binary()
             cmd = [
                 cursor_binary,
@@ -165,11 +225,24 @@ class RalphAgent:
                 "--print",
                 "--force",
                 "--approve-mcps",
-                prompt_text
             ]
+            
+            # Add streaming options for debug mode
+            if self.debug:
+                cmd.extend([
+                    "--output-format", "stream-json",
+                    "--stream-partial-output"
+                ])
+            
+            cmd.append(prompt_text)
             
             # Check if timeout command is available
             use_timeout_cmd = self._command_exists("timeout")
+            
+            # Set up environment for unbuffered output in debug mode
+            env = os.environ.copy()
+            if self.debug:
+                env['PYTHONUNBUFFERED'] = '1'
             
             if use_timeout_cmd:
                 # Use timeout command (matches bash script behavior)
@@ -179,7 +252,9 @@ class RalphAgent:
                     stdin=subprocess.DEVNULL,  # Close stdin (non-interactive)
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    text=True
+                    text=True,
+                    bufsize=1 if self.debug else -1,  # Line buffered in debug, default otherwise
+                    env=env
                 )
             else:
                 # Fallback: use Python timeout
@@ -188,33 +263,172 @@ class RalphAgent:
                     stdin=subprocess.DEVNULL,  # Close stdin (non-interactive)
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    text=True
+                    text=True,
+                    bufsize=1 if self.debug else -1,  # Line buffered in debug, default otherwise
+                    env=env
                 )
             
             self.running_processes.append(proc)
             
+            # Set up log file for debug mode
+            if self.debug and iteration is not None:
+                # Create logs directory if it doesn't exist
+                self.log_dir.mkdir(parents=True, exist_ok=True)
+                # Create log file with timestamp and iteration number
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                log_file_path = self.log_dir / f"iteration-{iteration:03d}-{timestamp}.log"
+                log_file = open(log_file_path, 'w', encoding='utf-8')
+                print(f"Debug: Logging output to {log_file_path}", file=sys.stderr)
+            
             # Get output with timeout handling
+            stdout = ""
             try:
-                if use_timeout_cmd:
-                    stdout, _ = proc.communicate()
-                    exit_code = proc.returncode
-                    # Check for timeout exit code (124 is timeout command's exit code)
-                    if exit_code == 124:
-                        print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
+                if self.debug:
+                    # Real-time streaming mode for debugging using cursor-agent's stream-json
+                    import threading
+                    import json
+                    output_lines = []
+                    
+                    def read_output():
+                        """Read and parse stream-json output and write to log file"""
+                        try:
+                            for line in proc.stdout:
+                                # Check for interrupt flag
+                                if self.interrupted:
+                                    break
+                                if not line.strip():
+                                    continue
+                                output_lines.append(line)
+                                try:
+                                    # Parse JSON line and extract text content
+                                    data = json.loads(line)
+                                    # Extract text from various possible fields
+                                    text = ""
+                                    if isinstance(data, dict):
+                                        # Look for common text fields in stream-json format
+                                        text = data.get("text", "") or data.get("content", "") or data.get("delta", "")
+                                        if not text and "choices" in data:
+                                            # Handle OpenAI-style format
+                                            for choice in data.get("choices", []):
+                                                delta = choice.get("delta", {})
+                                                text = delta.get("content", "")
+                                                if text:
+                                                    break
+                                    elif isinstance(data, str):
+                                        text = data
+                                    
+                                    if text:
+                                        # Write text to log file
+                                        if log_file:
+                                            log_file.write(text)
+                                            log_file.flush()
+                                    else:
+                                        # If no text found, write the raw line
+                                        if log_file:
+                                            log_file.write(line)
+                                            log_file.flush()
+                                except json.JSONDecodeError:
+                                    # If not JSON, write as-is
+                                    output_lines.append(line)
+                                    if log_file:
+                                        log_file.write(line)
+                                        log_file.flush()
+                        except Exception:
+                            pass
+                    
+                    # Start reading thread
+                    reader_thread = threading.Thread(target=read_output, daemon=True)
+                    reader_thread.start()
+                    
+                    # Wait for process with timeout, checking for interrupts
+                    if use_timeout_cmd:
+                        # timeout command handles timeout, but we need to poll to check for interrupts
+                        while proc.poll() is None and not self.interrupted:
+                            time.sleep(0.1)  # Small sleep to avoid busy-waiting
+                        # If interrupted, kill the process (signal handler may have already done this)
+                        if self.interrupted and proc.poll() is None:
+                            proc.kill()
+                            proc.wait()
+                        exit_code = proc.returncode if proc.returncode is not None else 130
+                        # Check for timeout exit code (124 is timeout command's exit code)
+                        if exit_code == 124:
+                            print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
+                        elif self.interrupted:
+                            exit_code = 130
+                    else:
+                        # Use Python timeout with interrupt checking
+                        try:
+                            # Poll with small intervals to check for interrupts
+                            start_time = time.time()
+                            while proc.poll() is None and not self.interrupted:
+                                elapsed = time.time() - start_time
+                                if elapsed >= self.cursor_timeout:
+                                    raise subprocess.TimeoutExpired(cmd, self.cursor_timeout)
+                                time.sleep(0.1)  # Small sleep to avoid busy-waiting
+                            # If interrupted, kill the process (signal handler may have already done this)
+                            if self.interrupted and proc.poll() is None:
+                                proc.kill()
+                                proc.wait()
+                            exit_code = proc.returncode if proc.returncode is not None else 130
+                        except subprocess.TimeoutExpired:
+                            print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
+                            proc.kill()
+                            proc.wait()
+                            exit_code = 124
+                    
+                    # Wait for reader thread to finish (with interrupt check)
+                    if not self.interrupted:
+                        reader_thread.join(timeout=1)
+                    else:
+                        # If interrupted, don't wait long for thread
+                        reader_thread.join(timeout=0.1)
+                    stdout = ''.join(output_lines)
+                    
+                    # Close log file (always close, even on interrupt)
+                    if log_file:
+                        log_file.close()
+                        log_file = None
                 else:
-                    stdout, _ = proc.communicate(timeout=self.cursor_timeout)
-                    exit_code = proc.returncode
+                    # Buffered mode (default) - collect all output after completion
+                    # Note: communicate() blocks, but signal handler will kill the process
+                    # which will cause communicate() to return
+                    if use_timeout_cmd:
+                        stdout, _ = proc.communicate()
+                        exit_code = proc.returncode
+                        # Check for timeout exit code (124 is timeout command's exit code)
+                        if exit_code == 124:
+                            print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
+                    else:
+                        try:
+                            stdout, _ = proc.communicate(timeout=self.cursor_timeout)
+                            exit_code = proc.returncode
+                        except subprocess.TimeoutExpired:
+                            print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
+                            proc.kill()
+                            stdout, _ = proc.communicate()
+                            exit_code = 124
+                    
+                    # Check if we were interrupted
+                    if self.interrupted:
+                        # Process was killed by signal handler, exit_code may not be accurate
+                        exit_code = 130
+                    
+                    # Print to stderr for viewing
+                    print(stdout, file=sys.stderr, end='', flush=True)
             except subprocess.TimeoutExpired:
                 print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
                 if proc is not None:
                     proc.kill()
-                    stdout, _ = proc.communicate()
+                    if not self.debug:
+                        stdout, _ = proc.communicate()
+                    else:
+                        stdout = ''.join(output_lines) if 'output_lines' in locals() else ""
                 else:
                     stdout = ""
                 exit_code = 124
-            
-            # Also print to stderr for real-time viewing
-            print(stdout, file=sys.stderr, end='')
+                if log_file:
+                    log_file.close()
+                    log_file = None
             
             return stdout
         except Exception as e:
@@ -228,6 +442,8 @@ class RalphAgent:
                         proc.kill()
                     except Exception:
                         pass
+            if log_file:
+                log_file.close()
             return ""
     
     def _command_exists(self, command):
@@ -257,6 +473,8 @@ class RalphAgent:
         print(f"Starting Ralph - Max iterations: {self.max_iterations}")
         print(f"Worker: Cursor")
         print(f"Model: {self.model}")
+        if self.debug:
+            print(f"Debug mode: Output will be logged to {self.log_dir}/")
         
         # Use Cursor prompt file (test mode if RALPH_TEST_MODE is set)
         if os.environ.get("RALPH_TEST_MODE") == "1":
@@ -279,7 +497,7 @@ class RalphAgent:
             print("═══════════════════════════════════════════════════════")
             
             # Run iteration
-            output = self._run_cursor_iteration(prompt_file)
+            output = self._run_cursor_iteration(prompt_file, iteration=i)
             
             # Remove completed process from tracking
             self.running_processes = [p for p in self.running_processes if p.poll() is None]
@@ -346,6 +564,11 @@ def main():
         default=model,
         help="Model to use for cursor worker (default: 'auto', from RALPH_MODEL env)"
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug mode with real-time output streaming"
+    )
     
     args = parser.parse_args()
     
@@ -353,7 +576,8 @@ def main():
     agent = RalphAgent(
         max_iterations=args.max_iterations,
         cursor_timeout=args.cursor_timeout,
-        model=args.model
+        model=args.model,
+        debug=args.debug
     )
     
     sys.exit(agent.run())
