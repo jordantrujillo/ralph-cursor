@@ -13,21 +13,23 @@ cd flowchart && npm run dev
 # Build the flowchart
 cd flowchart && npm run build
 
-# Run Ralph (from your project that has scripts/ralph/prd.yml)
+# Run Ralph (from your project that has Beads initialized)
 python3 scripts/ralph/ralph.py [max_iterations] [--cursor-timeout SECONDS]
 
-# Convert PRD markdown to prd.yml using Cursor CLI
-./scripts/ralph/cursor/convert-to-prd-yml.sh tasks/prd-[feature-name].md [--model MODEL] [--out OUT_YML]
+# Convert PRD markdown to Beads issues using Cursor CLI
+./scripts/ralph/cursor/convert-to-beads.sh tasks/prd-[feature-name].md [--model MODEL]
+
+# Migrate existing prd.yml to Beads issues
+python3 scripts/ralph/migrate-prd-to-beads.py [prd.yml path]
 ```
 
 ## Key Files
 
 - `scripts/ralph/ralph.py` - The Python loop (Cursor worker)
 - `scripts/ralph/cursor/prompt.cursor.md` - Instructions given to each Cursor iteration
-- `scripts/ralph/cursor/convert-to-prd-yml.sh` - Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI
-- `scripts/ralph/prd.yml.example` - Example PRD format
-- `scripts/ralph/prd.yml` - User stories with `passes` status (the task list)
-- `scripts/ralph/progress.txt` - Append-only learnings for future iterations
+- `scripts/ralph/cursor/convert-to-beads.sh` - Convert PRD markdown → Beads issues via Cursor CLI
+- `scripts/ralph/migrate-prd-to-beads.py` - Migrate existing prd.yml → Beads issues
+- `.beads/` - Beads git-backed JSONL storage (task tracking)
 - `flowchart/` - Interactive React Flow diagram explaining how Ralph works
 
 ## Flowchart
@@ -44,8 +46,8 @@ npm run dev
 ## Patterns
 
 - Each iteration spawns a fresh Cursor invocation with clean context
-- Memory persists via git history, `scripts/ralph/progress.txt`, and `scripts/ralph/prd.yml`
-- Stories should be small enough to complete in one context window
+- Memory persists via git history, Beads issue comments, and Beads issue metadata
+- Tasks should be small enough to complete in one context window
 - Always update AGENTS.md with discovered patterns for future iterations
 - Cursor-specific prompts are in `scripts/ralph/cursor/` subfolder
 
@@ -57,5 +59,41 @@ Ralph supports breaking down large PRDs into multiple phases, each with its own 
 - **Branch hierarchy:** Phase 1 branches from `main`, Phase N branches from Phase N-1's branch
 - **Incremental PRs:** Each phase can be reviewed as a separate PR, keeping PRs manageable
 - **Automatic progression:** Ralph automatically moves to the next phase when the current phase is complete
-- **PRD structure:** PRDs can define phases in the markdown, which get converted to `phases` in `prd.yml`
+- **PRD structure:** PRDs can define phases in the markdown, which get converted to phase epics in Beads
 - **Legacy support:** PRDs without phases are treated as a single phase for backward compatibility
+
+## Beads Workflow
+
+Ralph uses Beads, a git-backed graph issue tracker, for task management:
+
+- **Epics:** Project epic (top-level), phase epics (one per phase)
+- **Tasks:** User stories become tasks under phase epics
+- **Dependencies:** Tasks have dependencies based on priority (lower priority number tasks depend on higher priority number tasks)
+- **Status:** Open tasks are active, closed tasks are archived
+- **Comments:** Task comments preserve attempt history and learnings
+- **Metadata:** Branch names and story IDs stored in issue notes
+
+### Common Beads Commands
+
+```bash
+# List open epics
+bd list --type epic --status open
+
+# List ready tasks (no blockers)
+bd ready
+
+# Show issue details
+bd show <issue-id>
+
+# Close (archive) a task
+bd close <task-id>
+
+# Add comment to issue
+bd update <issue-id> --comment "text"
+
+# Add metadata/notes
+bd note <issue-id> "key: value"
+
+# List tasks in a phase
+bd list --parent <phase-epic-id> --status open
+```

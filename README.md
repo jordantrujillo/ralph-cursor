@@ -2,7 +2,7 @@
 
 ![Ralph](ralph.webp)
 
-Ralph is an autonomous AI agent loop that runs Cursor CLI repeatedly until all PRD items are complete. Each iteration is a fresh worker invocation with clean context. Memory persists via git history, `scripts/ralph/progress.txt`, and `scripts/ralph/prd.yml`.
+Ralph is an autonomous AI agent loop that runs Cursor CLI repeatedly until all PRD items are complete. Each iteration is a fresh worker invocation with clean context. Memory persists via git history, Beads issue comments, and Beads issue metadata.
 
 Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
@@ -12,7 +12,7 @@ Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
 - Cursor CLI (`cursor-agent` or `agent` command) installed and authenticated
 - Python 3 installed
-- `yq` installed (`brew install yq` on macOS) or Python 3 with PyYAML (`pip install pyyaml`) - optional but recommended
+- Beads CLI (`bd` command) installed - [Install Beads](https://github.com/beads-org/beads)
 - A git repository for your project
 
 ## Installation
@@ -43,8 +43,7 @@ ralph init --cursor-rules --cursor-cli
 ralph init --force
 ```
 
-This copies the necessary Ralph files into your project's `scripts/ralph/` directory.
-
+This copies the necessary Ralph files into your project's `scripts/ralph/` directory and initializes Beads if needed.
 
 ## Workflow
 
@@ -52,15 +51,21 @@ This copies the necessary Ralph files into your project's `scripts/ralph/` direc
 
 Generate a PRD using Cursor in the IDE with the repo's Cursor rules (see `.cursor/rules/`), or create one manually.
 
-### 2. Convert PRD to Ralph format
+### 2. Convert PRD to Beads Issues
 
-Convert PRD markdown to `scripts/ralph/prd.yml` using the Cursor helper script:
+Convert PRD markdown to Beads issues using the Cursor helper script:
 
 ```bash
-./scripts/ralph/cursor/convert-to-prd-yml.sh tasks/prd-[feature-name].md
+./scripts/ralph/cursor/convert-to-beads.sh tasks/prd-[feature-name].md
 ```
 
-This creates `scripts/ralph/prd.yml` with user stories structured for autonomous execution.
+This creates Beads issues (epics and tasks) structured for autonomous execution.
+
+**Or migrate existing prd.yml:**
+
+```bash
+python3 scripts/ralph/migrate-prd-to-beads.py scripts/ralph/prd.yml
+```
 
 ### 3. Run Ralph
 
@@ -88,9 +93,9 @@ python3 scripts/ralph/ralph.py [max_iterations] [--cursor-timeout SECONDS] [--mo
 - `RALPH_MODEL` - Default model to use (default: 'auto')
 
 The runner loop will invoke Cursor CLI repeatedly. The worker prompt instructs it to:
-- Read `scripts/ralph/prd.yml` and `scripts/ralph/progress.txt`
-- Implement one story per iteration, run checks, commit, and update `passes: true`
-- Stop by outputting `<promise>COMPLETE</promise>` when all stories pass
+- Read Beads issues using `bd ready`, `bd show`, etc.
+- Implement one task per iteration, run checks, commit, and close the task
+- Stop by outputting `<promise>COMPLETE</promise>` when all tasks are closed
 
 **Note:** `--cursor-timeout` only applies if a `timeout` binary is available on your PATH. If it isn't, Ralph will use Python's timeout mechanism.
 
@@ -101,10 +106,9 @@ The runner loop will invoke Cursor CLI repeatedly. The worker prompt instructs i
 | `bin/ralph.py` | The Ralph CLI tool (`ralph init` and `ralph run` commands) |
 | `scripts/ralph/ralph.py` | The Python loop that spawns fresh Cursor invocations |
 | `scripts/ralph/cursor/prompt.cursor.md` | Instructions given to each Cursor iteration |
-| `scripts/ralph/cursor/convert-to-prd-yml.sh` | Convert PRD markdown → `scripts/ralph/prd.yml` via Cursor CLI |
-| `scripts/ralph/prd.yml` | User stories with `passes` status (the task list) |
-| `scripts/ralph/prd.yml.example` | Example PRD format for reference |
-| `scripts/ralph/progress.txt` | Append-only learnings for future iterations |
+| `scripts/ralph/cursor/convert-to-beads.sh` | Convert PRD markdown → Beads issues via Cursor CLI |
+| `scripts/ralph/migrate-prd-to-beads.py` | Migrate existing prd.yml → Beads issues |
+| `.beads/` | Beads git-backed JSONL storage (task tracking) |
 | `flowchart/` | Interactive visualization of how Ralph works |
 
 ## Flowchart
@@ -123,8 +127,8 @@ npm run dev
 
 Each iteration spawns a **new Cursor invocation** with clean context. The only memory between iterations is:
 - Git history (commits from previous iterations)
-- `scripts/ralph/progress.txt` (learnings and context)
-- `scripts/ralph/prd.yml` (which stories are done)
+- Beads issue comments (learnings and attempt history)
+- Beads issue metadata (status, dependencies, branch names)
 
 ### Small Tasks
 
@@ -162,7 +166,7 @@ In Cursor, `AGENTS.md` files are workspace-level rule files that provide persist
 - `AGENTS.md` files are read by Cursor as workspace rules (similar to `.cursor/rules/` files)
 - Agents check for `AGENTS.md` files in directories where they make changes
 - If valuable patterns are discovered, agents add them to nearby `AGENTS.md` files
-- Main learnings go into `scripts/ralph/progress.txt` (especially the "Codebase Patterns" section)
+- Main learnings go into Beads issue comments (especially Codebase Patterns in project epic)
 
 **What belongs in AGENTS.md:**
 - Directory-specific API patterns or conventions (short rules only)
@@ -171,10 +175,10 @@ In Cursor, `AGENTS.md` files are workspace-level rule files that provide persist
 - Configuration or environment requirements
 - If Agent is given a task that is in conflict with a rule, it should remove that rule from the AGENTS.md file.
 
-**What belongs in progress.txt:**
-- Story-specific implementation details
-- Learnings from each iteration
-- General codebase patterns (in the "Codebase Patterns" section at the top)
+**What belongs in Beads:**
+- Task-specific implementation details (in task comments)
+- Learnings from each iteration (in task comments)
+- General codebase patterns (in project epic comments)
 
 ### Feedback Loops
 
@@ -189,20 +193,24 @@ Frontend stories must include "Verify in browser using browser MCP tools" in acc
 
 ### Stop Condition
 
-When all stories have `passes: true`, Ralph outputs `<promise>COMPLETE</promise>` and the loop exits.
+When all tasks are closed (archived), Ralph outputs `<promise>COMPLETE</promise>` and the loop exits.
 
 ## Debugging
 
 Check current state:
 
 ```bash
-# See which stories are done
-cat scripts/ralph/prd.yml | yq '.userStories[] | {id, title, passes}'
-# Or with Python:
-python3 -c "import yaml; print('\n'.join([f\"{s['id']}: {s['title']} - passes: {s['passes']}\" for s in yaml.safe_load(open('scripts/ralph/prd.yml'))['userStories']]))"
+# See open tasks
+bd list --status open
 
-# See learnings from previous iterations
-cat scripts/ralph/progress.txt
+# See ready tasks (no blockers)
+bd ready
+
+# Show task details
+bd show <task-id>
+
+# List tasks in a phase
+bd list --parent <phase-epic-id> --status open
 
 # Check git history
 git log --oneline -10
@@ -250,8 +258,9 @@ Options:
 
 ## Archiving
 
-Ralph automatically archives previous runs when you start a new feature (different `branchName`). Archives are saved to `scripts/ralph/archive/YYYY-MM-DD-feature-name/`.
+Ralph automatically archives completed tasks when they are closed. Beads preserves closed tasks for reference but they don't appear in active task queries.
 
 ## References
 
 - [Geoffrey Huntley's Ralph article](https://ghuntley.com/ralph/)
+- [Beads Issue Tracker](https://github.com/beads-org/beads)

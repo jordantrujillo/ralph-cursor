@@ -4,55 +4,84 @@ Autonomous coding agent. Use Cursor.
 
 ## Task
 
-1. Read `scripts/ralph/prd.yml`
-2. Read `progress.txt` (check Codebase Patterns first)
-3. **Find current phase:**
-   - PRD has `phases`: Find first phase (by phaseNumber) with `passes: false` story
-   - No phases (legacy): Entire PRD = single phase, use top-level `branchName`
-   - Work one phase at a time
-4. **Checkout/create phase branch:**
-   - Get phase `branchName`
+1. **Find current phase epic:**
+   - Use `bd list --type epic --status open` to find open epics
+   - Find the first phase epic (hierarchical ID like `bd-{hash}.1`, `bd-{hash}.2`, etc.) with open tasks
+   - Get phase epic ID (e.g., `bd-abc123.1`)
+   - If no phase epics found, check for project epic (top-level epic without parent)
+
+2. **Read Codebase Patterns from project epic:**
+   - Find project epic (top-level epic): `bd list --type epic` and find one without parent
+   - Read project epic: `bd show <project-epic-id>`
+   - Review comments for "Codebase Pattern:" entries
+   - These patterns help avoid mistakes and follow codebase conventions
+
+3. **Checkout/create phase branch:**
+   - Get phase branch from phase epic metadata: `bd show <phase-epic-id>`
+   - Look for "branch:" in the notes/metadata
    - Branch missing:
      - Phase 1: Create from current branch
      - Phase N (N > 1): Create from previous phase branch
    - Checkout phase branch
-5. Pick highest priority story from current phase where `passes: false`
-6. Implement that story
-7. Run quality checks (typecheck, lint, test)
-8. Update Cursor rules if reusable patterns found (see below)
-9. Append progress to `progress.txt` (pass or fail)
-10. If checks pass: 
-   - Set story `passes: true` in PRD
-   - Commit and push ALL with `feat: [Story ID] - [Story Title]`
 
-## Progress Format
+4. **Select task:**
+   - Use `bd ready --parent <phase-epic-id>` to find tasks with no blockers in current phase
+   - Pick the highest priority task (lowest priority number = highest priority)
+   - Get task ID (e.g., `bd-abc123.1.1`)
 
-APPEND to progress.txt (never replace):
-```
-## [Date/Time] - [Story ID]
-- What implemented
-- Files changed
-- **Learnings:**
-  - Patterns (e.g., "codebase uses X for Y")
-  - Gotchas (e.g., "update Z when changing W")
-  - Context (e.g., "evaluation panel in component X")
----
-```
+5. **Read task details and previous attempts:**
+   - Read task: `bd show <task-id>`
+   - **Critical: Review comments from previous iterations**
+     - Comments are automatically timestamped (most recent first)
+     - Pay special attention to the most recent comments
+     - Learn from failures: avoid repeating approaches that didn't work
+     - Build on previous attempts rather than starting from scratch
+   - Extract story ID from task metadata (if present): look for "story-id: US-001" in notes
+   - Understand what was tried before and why it failed (if applicable)
 
-Learnings section critical - helps future iterations avoid mistakes.
+6. **Implement the task:**
+   - Follow acceptance criteria from task description
+   - Use Codebase Patterns from project epic to guide implementation
+   - Avoid approaches that failed in previous attempts (from comments)
 
-## Consolidate Patterns
+7. **Run quality checks:**
+   - Typecheck
+   - Lint
+   - Test (if applicable)
 
-Reusable pattern found? Add to `## Codebase Patterns` at TOP of progress.txt (create if missing):
+8. **Update Cursor rules if reusable patterns found** (see below)
 
-```
+9. **Handle completion or failure:**
+   - **If successful:**
+     - Add success learnings comment: `bd update <task-id> --comment "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
+     - Close (archive) task: `bd close <task-id>` - this archives the task, preserving it for reference
+   - **If unable to complete after reasonable attempts:**
+     - Leave failure comment: `bd update <task-id> --comment "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"`
+     - **Do NOT include suggestions** - document facts only, let next iteration determine approach
+     - Comments are automatically timestamped, so next iteration can see what was tried most recently
+
+10. **Commit changes:**
+    - Commit with format: `feat: [Story ID] - [Task Title]` (if story ID exists) or `feat: [Beads ID] - [Task Title]` (fallback)
+    - Push changes
+
 ## Codebase Patterns
-- Use `sql<number>` template for aggregations
-- Always use `IF NOT EXISTS` for migrations
-- Export types from actions.ts for UI components
-```
 
-Only general/reusable patterns, not story-specific.
+Reusable patterns are stored in the project epic (top-level epic) notes/comments in Beads, not in progress.txt.
+
+**Reading patterns:**
+- Find project epic: `bd list --type epic` (find one without parent)
+- Read: `bd show <project-epic-id>`
+- Look for comments with "Codebase Pattern:" prefix
+
+**Adding patterns:**
+- If you discover a reusable pattern, add it to project epic:
+  - `bd update <project-epic-id> --comment "Codebase Pattern: [pattern description]"`
+- Only general/reusable patterns, not task-specific details
+
+**Example patterns:**
+- "Use `sql<number>` template for aggregations"
+- "Always use `IF NOT EXISTS` for migrations"
+- "Export types from actions.ts for UI components"
 
 ## Update Cursor Rules
 
@@ -95,9 +124,8 @@ alwaysApply: false
 - "Always use parameterized queries for database operations"
 
 **Don't add:**
-- Story-specific details
+- Task-specific details
 - Temporary debug notes
-- Info already in progress.txt
 - Vague or non-actionable statements
 
 **Rule scoping:**
@@ -116,7 +144,7 @@ Only update if genuinely reusable knowledge for future work. If a rule conflicts
 
 ## Browser Testing (Frontend Required)
 
-UI story changes? Must verify in browser:
+UI task changes? Must verify in browser:
 
 - Browser MCP tools available:
   1. Navigate to page
@@ -124,37 +152,43 @@ UI story changes? Must verify in browser:
   3. Screenshot if helpful
 - No browser MCP tools:
   - Ensure automated tests (Playwright, Cypress) cover UI
-  - If tests not feasible: Mark "needs manual verification" in progress
+  - If tests not feasible: Mark "needs manual verification" in task comment
   - Don't mark complete until verified
 
-Frontend story NOT complete until browser verification passes (MCP tools or automated tests).
+Frontend task NOT complete until browser verification passes (MCP tools or automated tests).
 
 ## Stop Condition
 
-After story complete, check status:
+After task complete, check status:
 
 1. **Current phase complete?**
-   - All stories in phase have `passes: true`:
-     - More phases with incomplete stories: Continue (next iteration handles)
-     - Last phase: Check if ALL stories across ALL phases have `passes: true`
-   
-2. **ALL stories complete?**
+   - After closing task with `bd close <task-id>`, check if phase is complete:
+     - Run: `bd list --parent <phase-epic-id> --status open`
+     - If empty: all tasks in phase are closed (archived), phase is complete
+   - If phase complete:
+     - Check if there are more phase epics (check parent epic for other phase children)
+     - If all phase epics complete: Reply `<promise>COMPLETE</promise>`
+     - If more phases exist: End normally (next iteration will move to next phase branch)
+
+2. **ALL tasks complete?**
    - Reply: `<promise>COMPLETE</promise>`
    
-3. **Still incomplete stories?**
+3. **Still incomplete tasks?**
    - End normally (next iteration picks up)
 
-**Phase transition:** Phase complete? Next iteration moves to next phase branch. Don't handle transitions in single iteration - just complete stories in current phase.
+**Phase transition:** Phase complete? Next iteration moves to next phase branch. Don't handle transitions in single iteration - just complete tasks in current phase.
 
 ## Important
 
-- ONE story per iteration
-- **Only stories from current phase**
+- ONE task per iteration
+- **Only tasks from current phase**
 - **On correct phase branch before starting**
 - **Phase branches: Phase 1 from current branch, Phase N from previous phase branch**
+- **Read previous attempt comments before starting work** - learn from failures
+- **Leave detailed comments when unable to complete** - help next iteration
 - Commit frequently
 - Keep CI green
-- Read Codebase Patterns in progress.txt first
+- Read Codebase Patterns from project epic first
 - Use Cursor file editing
 - Use `.cursor/rules/*` for repo conventions
 
@@ -164,3 +198,48 @@ After story complete, check status:
 - **Phase N (N > 1):** Create from previous phase branch
 - Each phase = separate PR
 - Phase branch = that phase work + previous phases as base
+
+## Failure Handling
+
+When unable to complete a task after reasonable attempts:
+
+1. **Document the failure:**
+   - Use: `bd update <task-id> --comment "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"`
+   - Include:
+     - What was attempted (approach, code changes, etc.)
+     - What failed (error messages, test failures, etc.)
+     - Why it failed (root cause if identified)
+   - **Do NOT include suggestions** - document facts only, let next iteration determine approach
+
+2. **Comments are automatically timestamped:**
+   - Beads automatically adds timestamps to comments
+   - Most recent comments appear first when reading task
+   - Next iteration can see what was tried most recently
+
+3. **Benefits:**
+   - Complete history of all attempts preserved
+   - Next iteration can see what was tried most recently
+   - Builds knowledge over multiple attempts
+   - Helps identify patterns in failures
+
+## Success Learnings
+
+When task completes successfully:
+
+1. **Add learnings comment before closing:**
+   - Use: `bd update <task-id> --comment "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
+   - Include:
+     - What was implemented
+     - Files changed
+     - Patterns discovered
+     - Gotchas encountered
+     - Context for future reference
+
+2. **Then close the task:**
+   - `bd close <task-id>` - this archives the task, preserving it for reference
+   - Learnings are preserved in task comments even after closing
+
+3. **Benefits:**
+   - Learnings preserved for similar tasks
+   - Helps build knowledge base over time
+   - Can be referenced later for similar work

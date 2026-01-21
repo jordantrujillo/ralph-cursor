@@ -4,37 +4,37 @@ overview: Replace the YAML-based prd.yml system with Beads, a git-backed graph i
 todos:
   - id: check-beads-availability
     content: Add Beads CLI availability check to ralph.py initialization
-    status: pending
+    status: done
   - id: update-ralph-branch-reading
     content: Replace _get_branch_name() in ralph.py to read from Beads metadata instead of YAML
-    status: pending
+    status: done
   - id: update-ralph-archive-logic
     content: Update _archive_previous_run() to work with Beads structure instead of prd.yml
-    status: pending
+    status: done
   - id: update-cursor-prompt
     content: "Replace prd.yml and progress.txt reading in prompt.cursor.md with Beads commands (bd ready, bd show, bd close). Add failure comment handling: read previous attempt comments (timestamped) before starting, leave detailed comments using bd update --comment when unable to complete task. Store Codebase Patterns in project epic notes."
-    status: pending
+    status: done
   - id: remove-progress-txt
     content: Remove all progress.txt references from ralph.py (progress_file, _initialize_progress_file, archive logic). Remove progress.txt from .gitignore.
-    status: pending
+    status: done
   - id: create-migration-script
     content: Create migrate-prd-to-beads.py to convert existing prd.yml files to Beads issues. Organize tasks by priority (create in priority order, set up dependencies based on priority).
-    status: pending
+    status: done
   - id: create-beads-converter
     content: Create convert-to-beads.sh to replace convert-to-prd-yml.sh. Organize tasks by priority (create in priority order, set up dependencies based on priority).
-    status: pending
+    status: done
   - id: update-ralph-init
     content: Add Beads initialization check to bin/ralph.py init command
-    status: pending
+    status: done
   - id: update-agents-md
     content: Update AGENTS.md to document Beads workflow instead of prd.yml, remove progress.txt references
-    status: pending
+    status: done
   - id: update-readme
     content: Update README.md with Beads examples, remove prd.yml and progress.txt references
-    status: pending
+    status: done
   - id: update-cursor-command
     content: Rename and update .cursor/commands/prd-to-yml.md to prd-to-beads.md. Ensure it instructs to organize tasks by priority (what needs to be developed first) and set up dependencies accordingly.
-    status: pending
+    status: done
 ---
 
 # Beads Integration Plan

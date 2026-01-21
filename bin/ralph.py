@@ -66,13 +66,45 @@ def handle_init(args):
         target_dir.mkdir(parents=True, exist_ok=True)
         print(f'Created: {target_dir}')
 
+    # Check for Beads CLI
+    if not shutil.which('bd'):
+        print('Warning: Beads CLI (bd) not found in PATH', file=sys.stderr)
+        print('  Ralph requires Beads for task tracking.', file=sys.stderr)
+        print('  Please install Beads: https://github.com/beads-org/beads', file=sys.stderr)
+        print('', file=sys.stderr)
+        response = input('Continue anyway? (y/N): ').strip().lower()
+        if response != 'y':
+            print('Aborted.', file=sys.stderr)
+            sys.exit(1)
+    
+    # Check if Beads is initialized
+    beads_dir = repo_root / '.beads'
+    if not beads_dir.exists():
+        print('Beads not initialized in repository.', file=sys.stdout)
+        print('  Initializing Beads...', file=sys.stdout)
+        try:
+            result = subprocess.run(
+                ['bd', 'init'],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0:
+                print('  ✓ Beads initialized', file=sys.stdout)
+            else:
+                print(f'  Warning: Beads init failed: {result.stderr}', file=sys.stderr)
+                print('  You may need to run: bd init', file=sys.stderr)
+        except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+            print(f'  Warning: Could not initialize Beads: {e}', file=sys.stderr)
+            print('  You may need to run: bd init', file=sys.stderr)
+    
     # Required files
     required_files = [
         {'src': 'scripts/ralph/ralph.py', 'dest': 'scripts/ralph/ralph.py', 'executable': True},
-        {'src': 'scripts/ralph/prd.yml.example', 'dest': 'scripts/ralph/prd.yml.example', 'executable': False},
         {'src': 'scripts/ralph/cursor/prompt.cursor.md', 'dest': 'scripts/ralph/cursor/prompt.cursor.md', 'executable': False},
-        {'src': 'scripts/ralph/cursor/prompt.convert-to-prd-yml.md', 'dest': 'scripts/ralph/cursor/prompt.convert-to-prd-yml.md', 'executable': False},
-        {'src': 'scripts/ralph/cursor/convert-to-prd-yml.sh', 'dest': 'scripts/ralph/cursor/convert-to-prd-yml.sh', 'executable': True},
+        {'src': 'scripts/ralph/cursor/convert-to-beads.sh', 'dest': 'scripts/ralph/cursor/convert-to-beads.sh', 'executable': True},
+        {'src': 'scripts/ralph/migrate-prd-to-beads.py', 'dest': 'scripts/ralph/migrate-prd-to-beads.py', 'executable': True},
     ]
 
     created = []
@@ -196,8 +228,12 @@ def handle_init(args):
         print('✓ Ralph initialized successfully!')
         print('='*60)
         print('\nNext steps:')
-        print('  1. Create or update scripts/ralph/prd.yml with your user stories')
-        print('  2. Run: ralph run')
+        print('  1. Create a PRD markdown file (e.g., tasks/prd-feature-name.md)')
+        print('  2. Convert PRD to Beads issues:')
+        print('     ./scripts/ralph/cursor/convert-to-beads.sh tasks/prd-feature-name.md')
+        print('  3. Or migrate existing prd.yml:')
+        print('     python3 scripts/ralph/migrate-prd-to-beads.py scripts/ralph/prd.yml')
+        print('  4. Run: ralph run')
         print('\nFor more information, run: ralph --help')
     else:
         print('\n' + '='*60)
