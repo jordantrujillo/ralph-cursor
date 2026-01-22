@@ -10,13 +10,7 @@ Autonomous coding agent. Use Cursor.
    - Get phase epic ID (e.g., `bd-abc123.1`)
    - If no phase epics found, check for project epic (top-level epic without parent) or just work on any open task you think is the highest priority
 
-2. **Read Codebase Patterns from project epic:**
-   - Find project epic (top-level epic): `bd list --type epic` and find one without parent
-   - Read project epic: `bd show <project-epic-id>`
-   - Review comments for "Codebase Pattern:" entries
-   - These patterns help avoid mistakes and follow codebase conventions
-
-3. **Checkout/create phase branch:**
+2. **Checkout/create phase branch:**
    - Get phase branch from phase epic metadata: `bd show <phase-epic-id>`
    - Look for "branch:" in the notes/metadata
    - Branch missing:
@@ -24,12 +18,12 @@ Autonomous coding agent. Use Cursor.
      - Phase N (N > 1): Create from previous phase branch
    - Checkout phase branch
 
-4. **Select task:**
+3. **Select task:**
    - Use `bd ready --parent <phase-epic-id>` to find tasks with no blockers in current phase
    - Pick the highest priority task (lowest priority number = highest priority)
    - Get task ID (e.g., `bd-abc123.1.1`)
 
-5. **Read task details and previous attempts:**
+4. **Read task details and previous attempts:**
    - Read task: `bd show <task-id>`
    - **Critical: Review comments from previous iterations**
      - Comments are automatically timestamped (most recent first)
@@ -37,51 +31,31 @@ Autonomous coding agent. Use Cursor.
      - Learn from failures: avoid repeating approaches that didn't work
      - Build on previous attempts rather than starting from scratch
    - Extract story ID from task metadata (if present): look for "story-id: US-001" in notes
-   - Understand what was tried before and why it failed (if applicable)
 
-6. **Implement the task:**
+5. **Implement the task:**
    - Follow acceptance criteria from task description
-   - Use Codebase Patterns from project epic to guide implementation
+   - Follow codebase conventions from `.cursor/rules/*` files (automatically applied by Cursor), unless they are conflicting with the task requirements or prompts.
    - Avoid approaches that failed in previous attempts (from comments)
 
-7. **Run quality checks:**
+6. **Run quality checks:**
    - Typecheck
    - Lint
    - Test (if applicable)
 
-8. **Update Cursor rules if reusable patterns found** (see below)
+7. **Update Cursor rules if reusable patterns found** (see below)
 
-9. **Handle completion or failure:**
+8. **Handle completion or failure:**
    - **If successful:**
      - Add success learnings comment: `bd comments add <task-id> "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
      - Close (archive) task: `bd close <task-id>` - this archives the task, preserving it for reference
    - **If unable to complete after reasonable attempts:**
-     - Leave failure comment: `bd comments add <task-id> "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"`
+     - Leave failure comment: `bd comments add <task-id> "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"` root cause can be unknown.
      - **Do NOT include suggestions** - document facts only, let next iteration determine approach
      - Comments are automatically timestamped, so next iteration can see what was tried most recently
 
-10. **Commit changes:**
+9. **Commit changes if successful:**
     - Commit with format: `feat: [Story ID] - [Task Title]` (if story ID exists) or `feat: [Beads ID] - [Task Title]` (fallback)
-    - Push changes
-
-## Codebase Patterns
-
-Reusable patterns are stored in the project epic (top-level epic) notes/comments in Beads, not in progress.txt.
-
-**Reading patterns:**
-- Find project epic: `bd list --type epic` (find one without parent)
-- Read: `bd show <project-epic-id>`
-- Look for comments with "Codebase Pattern:" prefix
-
-**Adding patterns:**
-- If you discover a reusable pattern, add it to project epic:
-  - `bd comments add <project-epic-id> "Codebase Pattern: [pattern description]"`
-- Only general/reusable patterns, not task-specific details
-
-**Example patterns:**
-- "Use `sql<number>` template for aggregations"
-- "Always use `IF NOT EXISTS` for migrations"
-- "Export types from actions.ts for UI components"
+    - Attempt to Push changes if successful
 
 ## Update Cursor Rules
 
@@ -89,11 +63,15 @@ Before commit, check edited files for learnings:
 
 1. Find directories with edited files
 2. Check for `.cursor/rules/*.mdc` files in those/parent directories
-3. If no rule file exists for that area, create one:
+3. **Check for conflicts first:**
+   - If existing rules conflict with task requirements, prompts, or new information: **overwrite or remove the conflicting rule**
+   - Rules must reflect current codebase reality, not outdated patterns
+   - When in doubt, task requirements and prompts take precedence over existing rules
+4. If no rule file exists for that area, create one:
    - Create `.cursor/rules/[area-name].mdc` (e.g., `api.mdc`, `ui-components.mdc`, `database.mdc`)
    - Use appropriate `globs` in frontmatter to scope the rule (e.g., `["**/api/**", "**/routes/**"]` for API rules)
    - Set `alwaysApply: false` if rule should only apply when files match globs, `alwaysApply: true` for project-wide rules
-4. Add valuable learnings as concise rules:
+5. Add valuable learnings as concise rules:
    - API patterns/conventions for that module
    - Gotchas/non-obvious requirements
    - File dependencies
@@ -133,7 +111,12 @@ alwaysApply: false
 - Directory-specific: Use appropriate globs (e.g., `["**/backend/**"]` for backend rules)
 - File-type specific: Use file extensions in globs (e.g., `["**/*.sql"]` for SQL rules)
 
-Only update if genuinely reusable knowledge for future work. If a rule conflicts with a task requirement, remove or update the conflicting rule.
+**Handling conflicts:**
+- **If a rule conflicts with task requirements, prompts, or new information: overwrite or remove it**
+- Rules must always reflect current codebase reality
+- Task requirements and prompts take precedence over existing rules
+- Update rules when you discover they're outdated or incorrect
+- Only update if genuinely reusable knowledge for future work
 
 ## Quality
 
@@ -188,9 +171,8 @@ After task complete, check status:
 - **Leave detailed comments when unable to complete** - help next iteration
 - Commit frequently
 - Keep CI green
-- Read Codebase Patterns from project epic first
 - Use Cursor file editing
-- Use `.cursor/rules/*` for repo conventions
+- Use `.cursor/rules/*` for repo conventions (automatically applied by Cursor based on file globs)
 
 ## Phase Branch Management
 
