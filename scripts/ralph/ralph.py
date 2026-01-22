@@ -33,11 +33,25 @@ class RalphAgent:
         
         # Get script directory
         self.script_dir = Path(__file__).parent.resolve()
-        self.prd_file = self.script_dir / "prd.yml"
-        self.progress_file = self.script_dir / "progress.txt"
         self.archive_dir = self.script_dir / "archive"
         self.last_branch_file = self.script_dir / ".last-branch"
         self.log_dir = self.script_dir / "logs"
+        
+        # Check for Beads CLI availability
+        if not self._command_exists("bd"):
+            raise FileNotFoundError(
+                "Beads CLI (bd) not found in PATH. "
+                "Please install Beads: https://github.com/steveyegge/beads"
+            )
+        
+        # Check if Beads is initialized in the repository
+        repo_root = Path.cwd()
+        beads_dir = repo_root / ".beads"
+        if not beads_dir.exists():
+            raise FileNotFoundError(
+                "Beads not initialized in repository. "
+                "Please run: bd init"
+            )
     
     def _signal_handler(self, signum, frame):
         """Handle Ctrl+C and other termination signals"""
@@ -67,43 +81,81 @@ class RalphAgent:
         self.running_processes.clear()
     
     def _get_branch_name(self):
-        """Get top-level branch name from PRD file using yq or Python fallback.
+        """Get top-level branch name from Beads project epic metadata.
         
         Note: This returns the feature-level branchName, not phase-specific branches.
         Phase-specific branches are handled by the Cursor prompt.
         """
-        if not self.prd_file.exists():
-            return None
+        repo_root = Path.cwd()
         
-        # Try yq first
+        # Find the project epic (top-level epic without a parent)
         try:
             result = subprocess.run(
-                ['yq', '-r', '.branchName // empty', str(self.prd_file)],
+                ['bd', 'list', '--type', 'epic', '--status', 'open'],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
+                cwd=str(repo_root)
             )
-            if result.returncode == 0:
-                branch = result.stdout.strip()
-                return branch if branch else None
+            if result.returncode != 0:
+                return None
+            
+            # Parse output to find top-level epic (no parent)
+            # bd list outputs issue IDs, we need to check each one
+            epic_ids = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
+            
+            # First pass: find the project epic (epic without a parent)
+            project_epic_id = None
+            for epic_id in epic_ids:
+                show_result = subprocess.run(
+                    ['bd', 'show', epic_id],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    cwd=str(repo_root)
+                )
+                if show_result.returncode == 0:
+                    output = show_result.stdout
+                    # Check if this epic has a parent (look for "Parent:" line)
+                    has_parent = any(line.strip().lower().startswith('parent:') for line in output.split('\n'))
+                    if not has_parent:
+                        # This is a top-level epic (project epic)
+                        project_epic_id = epic_id
+                        break
+            
+            # If no project epic found, return None
+            if not project_epic_id:
+                return None
+            
+            # Second pass: get branch metadata from project epic
+            show_result = subprocess.run(
+                ['bd', 'show', project_epic_id],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd=str(repo_root)
+            )
+            if show_result.returncode == 0:
+                output = show_result.stdout
+                for line in output.split('\n'):
+                    if line.strip().startswith('branch:'):
+                        branch = line.split(':', 1)[1].strip()
+                        return branch if branch else None
+            
+            return None
         except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
-        
-        # Fallback to Python with yaml if yq not available
-        try:
-            import yaml
-            with open(self.prd_file, 'r', encoding='utf-8') as f:
-                prd_data = yaml.safe_load(f)
-                return prd_data.get('branchName') if prd_data else None
-        except (ImportError, FileNotFoundError, PermissionError, yaml.YAMLError):
             return None
         except Exception:
             # Log unexpected errors but don't crash
             return None
     
     def _archive_previous_run(self):
-        """Archive previous run if branch changed"""
-        if not self.prd_file.exists() or not self.last_branch_file.exists():
+        """Archive previous run if branch changed
+        
+        Note: With Beads, archiving is handled by Beads itself (closed issues are archived).
+        This method only archives branch tracking information if the branch changed.
+        """
+        if not self.last_branch_file.exists():
             return
         
         current_branch = self._get_branch_name()
@@ -119,46 +171,24 @@ class RalphAgent:
             last_branch = ""
         
         if current_branch and last_branch and current_branch != last_branch:
-            # Archive the previous run
+            # Archive the previous run's branch tracking
             date = datetime.now().strftime("%Y-%m-%d")
             # Strip "ralph/" prefix from branch name for folder
             folder_name = last_branch.replace("ralph/", "")
             
             # Security: Sanitize folder_name to prevent path traversal attacks
-            # Only allow alphanumeric, dash, underscore, and dot characters
+            # Only allow alphanumeric, dash, and underscore characters (no dots to prevent ..)
             import re
-            folder_name = re.sub(r'[^a-zA-Z0-9\-_.]', '_', folder_name)
-            # Prevent directory traversal attempts
-            if '..' in folder_name or '/' in folder_name or '\\' in folder_name:
-                folder_name = folder_name.replace('..', '_').replace('/', '_').replace('\\', '_')
+            folder_name = re.sub(r'[^a-zA-Z0-9\-_]', '_', folder_name)
             
             archive_folder = self.archive_dir / f"{date}-{folder_name}"
             
-            print(f"Archiving previous run: {last_branch}")
-            try:
-                archive_folder.mkdir(parents=True, exist_ok=True)
-                
-                if self.prd_file.exists():
-                    result = subprocess.run(["cp", str(self.prd_file), str(archive_folder)], check=False, capture_output=True)
-                    if result.returncode != 0:
-                        print(f"Warning: Failed to archive PRD file: {result.stderr.decode('utf-8', errors='ignore')}", file=sys.stderr)
-                if self.progress_file.exists():
-                    result = subprocess.run(["cp", str(self.progress_file), str(archive_folder)], check=False, capture_output=True)
-                    if result.returncode != 0:
-                        print(f"Warning: Failed to archive progress file: {result.stderr.decode('utf-8', errors='ignore')}", file=sys.stderr)
-            except (OSError, PermissionError) as e:
-                print(f"Warning: Failed to create archive directory: {e}", file=sys.stderr)
+            print(f"Previous run branch: {last_branch}")
+            print(f"Current run branch: {current_branch}")
+            print(f"Note: With Beads, completed tasks are automatically archived when closed.")
             
-            print(f"   Archived to: {archive_folder}")
-            
-            # Reset progress file for new run
-            try:
-                with open(self.progress_file, 'w', encoding='utf-8') as f:
-                    f.write("# Ralph Progress Log\n")
-                    f.write(f"Started: {datetime.now()}\n")
-                    f.write("---\n")
-            except (OSError, PermissionError) as e:
-                print(f"Warning: Failed to reset progress file: {e}", file=sys.stderr)
+            # Beads handles its own archiving, so we don't need to archive Beads files
+            # The archive folder is kept for reference but won't contain prd.yml or progress.txt
     
     def _track_current_branch(self):
         """Track current branch"""
@@ -169,16 +199,6 @@ class RalphAgent:
             except (OSError, PermissionError) as e:
                 print(f"Warning: Failed to track current branch: {e}", file=sys.stderr)
     
-    def _initialize_progress_file(self):
-        """Initialize progress file if it doesn't exist"""
-        if not self.progress_file.exists():
-            try:
-                with open(self.progress_file, 'w', encoding='utf-8') as f:
-                    f.write("# Ralph Progress Log\n")
-                    f.write(f"Started: {datetime.now()}\n")
-                    f.write("---\n")
-            except (OSError, PermissionError) as e:
-                print(f"Warning: Failed to initialize progress file: {e}", file=sys.stderr)
     
     def _find_cursor_binary(self):
         """Find the cursor binary, checking cursor-agent, then agent"""
@@ -468,11 +488,11 @@ class RalphAgent:
         # Setup
         self._archive_previous_run()
         self._track_current_branch()
-        self._initialize_progress_file()
         
         print(f"Starting Ralph - Max iterations: {self.max_iterations}")
         print(f"Worker: Cursor")
         print(f"Model: {self.model}")
+        print(f"Task tracker: Beads")
         if self.debug:
             print(f"Debug mode: Output will be logged to {self.log_dir}/")
         
@@ -521,7 +541,7 @@ class RalphAgent:
         else:
             print("")
             print(f"Ralph reached max iterations ({self.max_iterations}) without completing all tasks.")
-            print(f"Check {self.progress_file} for status.")
+            print(f"Check Beads for task status: bd list --status open")
             return 1
 
 

@@ -4,55 +4,58 @@ Autonomous coding agent. Use Cursor.
 
 ## Task
 
-1. Read `scripts/ralph/prd.yml`
-2. Read `progress.txt` (check Codebase Patterns first)
-3. **Find current phase:**
-   - PRD has `phases`: Find first phase (by phaseNumber) with `passes: false` story
-   - No phases (legacy): Entire PRD = single phase, use top-level `branchName`
-   - Work one phase at a time
-4. **Checkout/create phase branch:**
-   - Get phase `branchName`
+1. **Find current phase epic:**
+   - Use `bd list --type epic --status open` to find open epics
+   - Find the first phase epic (hierarchical ID like `bd-{hash}.1`, `bd-{hash}.2`, etc.) with open tasks
+   - Get phase epic ID (e.g., `bd-abc123.1`)
+   - If no phase epics found, check for project epic (top-level epic without parent) or just work on any open task you think is the highest priority
+
+2. **Checkout/create phase branch:**
+   - Get phase branch from phase epic metadata: `bd show <phase-epic-id>`
+   - Look for "branch:" in the notes/metadata
    - Branch missing:
      - Phase 1: Create from current branch
      - Phase N (N > 1): Create from previous phase branch
    - Checkout phase branch
-5. Pick highest priority story from current phase where `passes: false`
-6. Implement that story
-7. Run quality checks (typecheck, lint, test)
-8. Update Cursor rules if reusable patterns found (see below)
-9. Append progress to `progress.txt` (pass or fail)
-10. If checks pass: 
-   - Set story `passes: true` in PRD
-   - Commit and push ALL with `feat: [Story ID] - [Story Title]`
 
-## Progress Format
+3. **Select task:**
+   - Use `bd ready --parent <phase-epic-id>` to find tasks with no blockers in current phase
+   - Pick the highest priority task (lowest priority number = highest priority)
+   - Get task ID (e.g., `bd-abc123.1.1`)
 
-APPEND to progress.txt (never replace):
-```
-## [Date/Time] - [Story ID]
-- What implemented
-- Files changed
-- **Learnings:**
-  - Patterns (e.g., "codebase uses X for Y")
-  - Gotchas (e.g., "update Z when changing W")
-  - Context (e.g., "evaluation panel in component X")
----
-```
+4. **Read task details and previous attempts:**
+   - Read task: `bd show <task-id>`
+   - **Critical: Review comments from previous iterations**
+     - Comments are automatically timestamped (most recent first)
+     - Pay special attention to the most recent comments
+     - Learn from failures: avoid repeating approaches that didn't work
+     - Build on previous attempts rather than starting from scratch
+   - Extract story ID from task metadata (if present): look for "story-id: US-001" in notes
 
-Learnings section critical - helps future iterations avoid mistakes.
+5. **Implement the task:**
+   - Follow acceptance criteria from task description
+   - Follow codebase conventions from `.cursor/rules/*` files (automatically applied by Cursor), unless they are conflicting with the task requirements or prompts.
+   - Avoid approaches that failed in previous attempts (from comments)
 
-## Consolidate Patterns
+6. **Run quality checks:**
+   - Typecheck
+   - Lint
+   - Test (if applicable)
 
-Reusable pattern found? Add to `## Codebase Patterns` at TOP of progress.txt (create if missing):
+7. **Update Cursor rules if reusable patterns found** (see below)
 
-```
-## Codebase Patterns
-- Use `sql<number>` template for aggregations
-- Always use `IF NOT EXISTS` for migrations
-- Export types from actions.ts for UI components
-```
+8. **Handle completion or failure:**
+   - **If successful:**
+     - Add success learnings comment: `bd comments add <task-id> "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
+     - Close (archive) task: `bd close <task-id>` - this archives the task, preserving it for reference
+   - **If unable to complete after reasonable attempts:**
+     - Leave failure comment: `bd comments add <task-id> "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"` root cause can be unknown.
+     - **Do NOT include suggestions** - document facts only, let next iteration determine approach
+     - Comments are automatically timestamped, so next iteration can see what was tried most recently
 
-Only general/reusable patterns, not story-specific.
+9. **Commit changes if successful:**
+    - Commit with format: `feat: [Story ID] - [Task Title]` (if story ID exists) or `feat: [Beads ID] - [Task Title]` (fallback)
+    - Attempt to Push changes if successful
 
 ## Update Cursor Rules
 
@@ -60,11 +63,15 @@ Before commit, check edited files for learnings:
 
 1. Find directories with edited files
 2. Check for `.cursor/rules/*.mdc` files in those/parent directories
-3. If no rule file exists for that area, create one:
+3. **Check for conflicts first:**
+   - If existing rules conflict with task requirements, prompts, or new information: **overwrite or remove the conflicting rule**
+   - Rules must reflect current codebase reality, not outdated patterns
+   - When in doubt, task requirements and prompts take precedence over existing rules
+4. If no rule file exists for that area, create one:
    - Create `.cursor/rules/[area-name].mdc` (e.g., `api.mdc`, `ui-components.mdc`, `database.mdc`)
    - Use appropriate `globs` in frontmatter to scope the rule (e.g., `["**/api/**", "**/routes/**"]` for API rules)
    - Set `alwaysApply: false` if rule should only apply when files match globs, `alwaysApply: true` for project-wide rules
-4. Add valuable learnings as concise rules:
+5. Add valuable learnings as concise rules:
    - API patterns/conventions for that module
    - Gotchas/non-obvious requirements
    - File dependencies
@@ -95,9 +102,8 @@ alwaysApply: false
 - "Always use parameterized queries for database operations"
 
 **Don't add:**
-- Story-specific details
+- Task-specific details
 - Temporary debug notes
-- Info already in progress.txt
 - Vague or non-actionable statements
 
 **Rule scoping:**
@@ -105,7 +111,12 @@ alwaysApply: false
 - Directory-specific: Use appropriate globs (e.g., `["**/backend/**"]` for backend rules)
 - File-type specific: Use file extensions in globs (e.g., `["**/*.sql"]` for SQL rules)
 
-Only update if genuinely reusable knowledge for future work. If a rule conflicts with a task requirement, remove or update the conflicting rule.
+**Handling conflicts:**
+- **If a rule conflicts with task requirements, prompts, or new information: overwrite or remove it**
+- Rules must always reflect current codebase reality
+- Task requirements and prompts take precedence over existing rules
+- Update rules when you discover they're outdated or incorrect
+- Only update if genuinely reusable knowledge for future work
 
 ## Quality
 
@@ -116,7 +127,7 @@ Only update if genuinely reusable knowledge for future work. If a rule conflicts
 
 ## Browser Testing (Frontend Required)
 
-UI story changes? Must verify in browser:
+UI task changes? Must verify in browser:
 
 - Browser MCP tools available:
   1. Navigate to page
@@ -124,39 +135,44 @@ UI story changes? Must verify in browser:
   3. Screenshot if helpful
 - No browser MCP tools:
   - Ensure automated tests (Playwright, Cypress) cover UI
-  - If tests not feasible: Mark "needs manual verification" in progress
+  - If tests not feasible: Mark "needs manual verification" in task comment
   - Don't mark complete until verified
 
-Frontend story NOT complete until browser verification passes (MCP tools or automated tests).
+Frontend task NOT complete until browser verification passes (MCP tools or automated tests).
 
 ## Stop Condition
 
-After story complete, check status:
+After task complete, check status:
 
 1. **Current phase complete?**
-   - All stories in phase have `passes: true`:
-     - More phases with incomplete stories: Continue (next iteration handles)
-     - Last phase: Check if ALL stories across ALL phases have `passes: true`
-   
-2. **ALL stories complete?**
+   - After closing task with `bd close <task-id>`, check if phase is complete:
+     - Run: `bd list --parent <phase-epic-id> --status open`
+     - If empty: all tasks in phase are closed (archived), phase is complete
+   - If phase complete:
+     - Check if there are more phase epics (check parent epic for other phase children)
+     - If all phase epics complete: Reply `<promise>COMPLETE</promise>`
+     - If more phases exist: End normally (next iteration will move to next phase branch)
+
+2. **ALL tasks complete?**
    - Reply: `<promise>COMPLETE</promise>`
    
-3. **Still incomplete stories?**
+3. **Still incomplete tasks?**
    - End normally (next iteration picks up)
 
-**Phase transition:** Phase complete? Next iteration moves to next phase branch. Don't handle transitions in single iteration - just complete stories in current phase.
+**Phase transition:** Phase complete? Next iteration moves to next phase branch. Don't handle transitions in single iteration - just complete tasks in current phase.
 
 ## Important
 
-- ONE story per iteration
-- **Only stories from current phase**
+- ONE task per iteration
+- **Only tasks from current phase**
 - **On correct phase branch before starting**
 - **Phase branches: Phase 1 from current branch, Phase N from previous phase branch**
+- **Read previous attempt comments before starting work** - learn from failures
+- **Leave detailed comments when unable to complete** - help next iteration
 - Commit frequently
 - Keep CI green
-- Read Codebase Patterns in progress.txt first
 - Use Cursor file editing
-- Use `.cursor/rules/*` for repo conventions
+- Use `.cursor/rules/*` for repo conventions (automatically applied by Cursor based on file globs)
 
 ## Phase Branch Management
 
@@ -164,3 +180,48 @@ After story complete, check status:
 - **Phase N (N > 1):** Create from previous phase branch
 - Each phase = separate PR
 - Phase branch = that phase work + previous phases as base
+
+## Failure Handling
+
+When unable to complete a task after reasonable attempts:
+
+1. **Document the failure:**
+   - Use: `bd comments add <task-id> "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"`
+   - Include:
+     - What was attempted (approach, code changes, etc.)
+     - What failed (error messages, test failures, etc.)
+     - Why it failed (root cause if identified)
+   - **Do NOT include suggestions** - document facts only, let next iteration determine approach
+
+2. **Comments are automatically timestamped:**
+   - Beads automatically adds timestamps to comments
+   - Most recent comments appear first when reading task
+   - Next iteration can see what was tried most recently
+
+3. **Benefits:**
+   - Complete history of all attempts preserved
+   - Next iteration can see what was tried most recently
+   - Builds knowledge over multiple attempts
+   - Helps identify patterns in failures
+
+## Success Learnings
+
+When task completes successfully:
+
+1. **Add learnings comment before closing:**
+   - Use: `bd comments add <task-id> "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
+   - Include:
+     - What was implemented
+     - Files changed
+     - Patterns discovered
+     - Gotchas encountered
+     - Context for future reference
+
+2. **Then close the task:**
+   - `bd close <task-id>` - this archives the task, preserving it for reference
+   - Learnings are preserved in task comments even after closing
+
+3. **Benefits:**
+   - Learnings preserved for similar tasks
+   - Helps build knowledge base over time
+   - Can be referenced later for similar work

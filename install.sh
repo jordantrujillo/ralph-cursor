@@ -214,37 +214,6 @@ MISSING_DEPS=()
 DEP_INSTALL_COMMANDS=()
 DEP_INSTALL_DESCRIPTIONS=()
 
-# Check for yq
-if ! command -v yq >/dev/null 2>&1; then
-    MISSING_DEPS+=("yq")
-    if [ "$DETECTED_PLATFORM" = "macos" ]; then
-        DEP_INSTALL_COMMANDS+=("brew install yq")
-        DEP_INSTALL_DESCRIPTIONS+=("Installing yq via Homebrew...")
-    elif [ "$DETECTED_PLATFORM" = "linux" ]; then
-        # Detect architecture for Linux
-        ARCH=$(uname -m)
-        if [ "$ARCH" = "x86_64" ]; then
-            ARCH="amd64"
-        elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-            ARCH="arm64"
-        else
-            ARCH="amd64"  # Default fallback
-        fi
-        DEP_INSTALL_COMMANDS+=("sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} && sudo chmod +x /usr/local/bin/yq")
-        DEP_INSTALL_DESCRIPTIONS+=("Downloading yq for Linux ($ARCH)...")
-    else
-        DEP_INSTALL_COMMANDS+=("# Unsupported platform - manual installation required")
-        DEP_INSTALL_DESCRIPTIONS+=("Manual installation required for unsupported platform")
-    fi
-else
-    echo -e "${GREEN}✓ yq is installed${NC}"
-    # Verify yq works
-    if yq --version >/dev/null 2>&1; then
-        YQ_VERSION=$(yq --version 2>/dev/null | head -n1 || echo "unknown")
-        echo -e "  Version: $YQ_VERSION"
-    fi
-fi
-
 # Ask to install missing dependencies
 if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     echo ""
@@ -258,14 +227,7 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     if [ "$DETECTED_PLATFORM" = "unsupported" ]; then
         echo -e "${YELLOW}Platform not automatically supported: $OSTYPE${NC}"
         echo ""
-        echo "Next steps:"
-        echo "  1. Visit https://github.com/mikefarah/yq/releases to download yq for your platform"
-        echo "  2. Or install via package manager:"
-        echo "     - pip: pip install pyyaml"
-        echo "     - npm: npm install -g yq"
-        echo "     - Check your system's package manager for yq"
-        echo ""
-        echo "After installing yq, re-run this install script."
+        echo "Please install missing dependencies manually for your platform."
     else
         # Only prompt if running in interactive mode
         if [ -t 0 ]; then
@@ -343,7 +305,6 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
                             echo "    3. Ensure Homebrew is installed: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"" >&2
                         elif [ "$DETECTED_PLATFORM" = "linux" ]; then
                             echo "    3. Check if you have sudo permissions" >&2
-                            echo "    4. Try alternative: wget -qO ~/.local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} && chmod +x ~/.local/bin/yq" >&2
                         fi
                         INSTALL_FAILED=1
                     fi
