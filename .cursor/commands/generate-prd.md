@@ -427,6 +427,129 @@ Remaining questions or areas needing clarification.
 - Tests serve as documentation of expected behavior
 - Catches bugs earlier in the development cycle
 
+### Prompting AI for Better Tests
+
+When asking AI to write tests, structure your prompts to get tests that actually catch bugs rather than tests that just pass. Here's how to structure effective test prompts:
+
+#### Essential Prompt Elements
+
+**1. Emphasize behavior over coverage**
+```
+❌ "Write unit tests for this function"
+✅ "Write tests that verify this function correctly handles [specific scenario]. 
+   Include at least one test that would fail if [specific bug] were introduced."
+```
+
+**2. Require failure scenarios**
+```
+"For each test, explicitly state what bug or regression it's designed to catch.
+Include tests for edge cases, error conditions, and boundary values."
+```
+
+**3. Minimize mocking by default**
+```
+"Use real implementations wherever possible. Only mock external dependencies 
+like databases, APIs, or file systems. Do not mock the code under test."
+```
+
+**4. Demand specific assertions**
+```
+"Assertions should verify exact expected values, not just types or structure.
+Explain WHY each assertion matters and what would break if it failed."
+```
+
+#### Example Prompt Template
+
+```
+Write tests for [function/class name] that:
+
+1. Test the actual implementation, not mocks
+2. For each test, state which bug it would catch
+3. Include these scenarios:
+   - Happy path: [describe expected behavior]
+   - Edge cases: [list specific cases like empty input, null, max values]
+   - Error cases: [what should fail and how]
+4. Use specific assertions - no generic "toEqual(mockData)" checks
+5. After writing, suggest one way to verify each test can actually fail
+
+Format: 
+- Test name should describe the scenario, not the implementation
+- Include a comment explaining what regression each test prevents
+```
+
+#### Specific Anti-Pattern Instructions
+
+Add these to your prompts:
+
+```
+DO NOT:
+- Mock the function being tested
+- Assert that output equals input unless that's the actual requirement
+- Only test the happy path
+- Use overly broad matchers like toMatchObject when exact values are known
+- Create tests that pass even if the implementation is deleted
+
+DO:
+- Test actual return values against specific expected values
+- Include at least 2 error/edge case tests for every happy path test
+- Use the most specific assertion possible
+- Test the contract/behavior, not implementation details
+```
+
+#### Advanced: Ask for Test Cases First
+
+This two-step approach works well:
+
+**Step 1:**
+```
+"List 5-7 test cases for [function], including:
+- What scenario is being tested
+- What inputs to use
+- What exact output is expected
+- What bug this would catch
+
+Don't write code yet, just the test plan."
+```
+
+**Step 2 (after you review):**
+```
+"Now implement these test cases: [paste approved cases]
+Use minimal mocking and specific assertions."
+```
+
+#### Example: Good vs Bad Prompt
+
+**Bad:**
+```
+"Write unit tests for this authentication function"
+```
+
+**Good:**
+```
+"Write tests for validatePassword() that verify:
+1. Returns true for valid passwords (8+ chars, 1 number, 1 special char)
+2. Returns false for passwords missing each requirement
+3. Handles null/undefined input without crashing
+4. Rejects common weak passwords like '12345678!'
+
+Each test should use real password strings and assert exact boolean values.
+State which security vulnerability each test prevents.
+Do not mock the validation logic itself."
+```
+
+#### Verification Step
+
+End your prompt with:
+```
+"After generating tests, for each one explain:
+1. How you would temporarily break the code to make this test fail
+2. What the test would look like if it were incorrectly mocking everything"
+```
+
+This forces the AI to think about test quality, not just test quantity.
+
+**Key Principle:** Be prescriptive about scenarios and assertions, not just "write tests." The more specific you are about what needs verification, the less room for hallucinated tests that pass without testing anything real.
+
 ### Infrastructure as Code: Validation and Code Review
 
 **Infrastructure as code follows a validation and code review approach:**
