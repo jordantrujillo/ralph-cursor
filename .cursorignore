@@ -2,3 +2,4 @@
 # ingore all md files in tasks folder
 tasks/**/*.md
 tasks/*.md
+.beads/
