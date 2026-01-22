@@ -36,8 +36,8 @@ Navigate to your project directory and initialize Ralph:
 # Basic initialization
 ralph init
 
-# With Cursor rules and CLI config templates
-ralph init --cursor-rules --cursor-cli
+# With CLI config template
+ralph init --cursor-cli
 
 # Overwrite existing files
 ralph init --force
@@ -117,8 +117,6 @@ The runner loop will invoke Cursor CLI repeatedly. The worker prompt instructs i
 | `bin/ralph.py` | The Ralph CLI tool (`ralph init` and `ralph run` commands) |
 | `scripts/ralph/ralph.py` | The Python loop that spawns fresh Cursor invocations |
 | `scripts/ralph/cursor/prompt.cursor.md` | Instructions given to each Cursor iteration |
-| `scripts/ralph/cursor/convert-to-beads.sh` | Convert PRD markdown → Beads issues via Cursor CLI |
-| `scripts/ralph/migrate-prd-to-beads.py` | Migrate existing prd.yml → Beads issues |
 | `.beads/` | Beads git-backed JSONL storage (task tracking) |
 | `flowchart/` | Interactive visualization of how Ralph works |
 
@@ -244,12 +242,11 @@ Worker prompt location:
 Initialize Ralph in your current repository:
 
 ```bash
-ralph init [--force] [--cursor-rules] [--cursor-cli]
+ralph init [--force] [--cursor-cli]
 ```
 
 Options:
 - `--force` - Overwrite existing files
-- `--cursor-rules` - Also install `.cursor/rules/ralph-prd.mdc`
 - `--cursor-cli` - Also install `.cursor/cli.json` template
 
 ### `ralph run`
