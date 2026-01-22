@@ -6,13 +6,13 @@ Ralph is an autonomous AI agent loop that runs Cursor CLI repeatedly until all P
 
 Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
-[Read my in-depth article on how I use Ralph](https://x.com/ryancarson/status/2008548371712135632)
+[Read my in-depth article on how OP uses Ralph](https://x.com/ryancarson/status/2008548371712135632)
 
 ## Prerequisites
 
 - Cursor CLI (`cursor-agent` or `agent` command) installed and authenticated
 - Python 3 installed
-- Beads CLI (`bd` command) installed - [Install Beads](https://github.com/beads-org/beads)
+- Beads CLI (`bd` command) installed - [Install Beads](https://github.com/steveyegge/beads)
 - A git repository for your project
 
 ## Installation
@@ -45,27 +45,38 @@ ralph init --force
 
 This copies the necessary Ralph files into your project's `scripts/ralph/` directory and initializes Beads if needed.
 
+### Verify Beads Initialization
+
+Ralph automatically initializes Beads with a project-specific prefix during `ralph init`. Verify it's set up correctly:
+
+```bash
+# Check Beads is initialized
+ls .beads/
+
+# Verify the issue prefix
+bd config get issue_prefix
+```
+
+If Beads wasn't initialized or needs manual setup:
+
+```bash
+# Initialize Beads (prefix auto-derives from directory name)
+bd init --skip-hooks
+```
+
+The prefix is automatically derived from your directory name (e.g., directory `myapp` → prefix `myapp` → issue IDs like `myapp-a3f2dd`).
+
 ## Workflow
 
 ### 1. Create a PRD
 
-Generate a PRD using Cursor in the IDE with the repo's Cursor rules (see `.cursor/rules/`), or create one manually.
+Generate a PRD using Cursor in the IDE with the repo's Cursor rules (see `.cursor/rules/`), or create one manually. It is recommended to go back and forth with the agent until you are happy with the PRD. Important that you take the time to READ it. 
 
 ### 2. Convert PRD to Beads Issues
 
-Convert PRD markdown to Beads issues using the Cursor helper script:
-
-```bash
-./scripts/ralph/cursor/convert-to-beads.sh tasks/prd-[feature-name].md
-```
-
-This creates Beads issues (epics and tasks) structured for autonomous execution.
-
-**Or migrate existing prd.yml:**
-
-```bash
-python3 scripts/ralph/migrate-prd-to-beads.py scripts/ralph/prd.yml
-```
+> **Note**: The automated conversion scripts (`convert-to-beads.sh` and `migrate-prd-to-beads.py`) are not yet implemented. 
+> For now, you'll need to manually create Beads issues using the `bd` CLI commands. 
+> See `.cursor/commands/prd-to-beads.md` for the conversion process and Beads command reference.
 
 ### 3. Run Ralph
 
@@ -263,4 +274,4 @@ Ralph automatically archives completed tasks when they are closed. Beads preserv
 ## References
 
 - [Geoffrey Huntley's Ralph article](https://ghuntley.com/ralph/)
-- [Beads Issue Tracker](https://github.com/beads-org/beads)
+- [Beads Issue Tracker](https://github.com/steveyegge/beads)

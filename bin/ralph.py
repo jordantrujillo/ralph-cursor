@@ -70,7 +70,7 @@ def handle_init(args):
     if not shutil.which('bd'):
         print('Warning: Beads CLI (bd) not found in PATH', file=sys.stderr)
         print('  Ralph requires Beads for task tracking.', file=sys.stderr)
-        print('  Please install Beads: https://github.com/beads-org/beads', file=sys.stderr)
+        print('  Please install Beads: https://github.com/steveyegge/beads', file=sys.stderr)
         print('', file=sys.stderr)
         response = input('Continue anyway? (y/N): ').strip().lower()
         if response != 'y':
@@ -84,7 +84,7 @@ def handle_init(args):
         print('  Initializing Beads...', file=sys.stdout)
         try:
             result = subprocess.run(
-                ['bd', 'init'],
+                ['bd', 'init', '--skip-hooks'],
                 cwd=str(repo_root),
                 capture_output=True,
                 text=True,
@@ -103,8 +103,6 @@ def handle_init(args):
     required_files = [
         {'src': 'scripts/ralph/ralph.py', 'dest': 'scripts/ralph/ralph.py', 'executable': True},
         {'src': 'scripts/ralph/cursor/prompt.cursor.md', 'dest': 'scripts/ralph/cursor/prompt.cursor.md', 'executable': False},
-        {'src': 'scripts/ralph/cursor/convert-to-beads.sh', 'dest': 'scripts/ralph/cursor/convert-to-beads.sh', 'executable': True},
-        {'src': 'scripts/ralph/migrate-prd-to-beads.py', 'dest': 'scripts/ralph/migrate-prd-to-beads.py', 'executable': True},
     ]
 
     created = []
@@ -229,11 +227,9 @@ def handle_init(args):
         print('='*60)
         print('\nNext steps:')
         print('  1. Create a PRD markdown file (e.g., tasks/prd-feature-name.md)')
-        print('  2. Convert PRD to Beads issues:')
-        print('     ./scripts/ralph/cursor/convert-to-beads.sh tasks/prd-feature-name.md')
-        print('  3. Or migrate existing prd.yml:')
-        print('     python3 scripts/ralph/migrate-prd-to-beads.py scripts/ralph/prd.yml')
-        print('  4. Run: ralph run')
+        print('  2. Manually create Beads issues using bd CLI commands')
+        print('     See .cursor/commands/prd-to-beads.md for the conversion process')
+        print('  3. Run: ralph run')
         print('\nFor more information, run: ralph --help')
     else:
         print('\n' + '='*60)

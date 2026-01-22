@@ -27,8 +27,6 @@ python3 scripts/ralph/migrate-prd-to-beads.py [prd.yml path]
 
 - `scripts/ralph/ralph.py` - The Python loop (Cursor worker)
 - `scripts/ralph/cursor/prompt.cursor.md` - Instructions given to each Cursor iteration
-- `scripts/ralph/cursor/convert-to-beads.sh` - Convert PRD markdown → Beads issues via Cursor CLI
-- `scripts/ralph/migrate-prd-to-beads.py` - Migrate existing prd.yml → Beads issues
 - `.beads/` - Beads git-backed JSONL storage (task tracking)
 - `flowchart/` - Interactive React Flow diagram explaining how Ralph works
 
@@ -73,9 +71,23 @@ Ralph uses Beads, a git-backed graph issue tracker, for task management:
 - **Comments:** Task comments preserve attempt history and learnings
 - **Metadata:** Branch names and story IDs stored in issue notes
 
+### Beads Initialization
+
+When initializing Beads in a new repository:
+
+```bash
+# Initialize Beads (prefix auto-derived from directory name)
+bd init --skip-hooks
+```
+
+The prefix is automatically derived from the directory name (e.g., directory `myapp` → prefix `myapp` → issue IDs like `myapp-a3f2dd`).
+
 ### Common Beads Commands
 
 ```bash
+# Initialize Beads (prefix auto-derived from directory name)
+bd init --skip-hooks
+
 # List open epics
 bd list --type epic --status open
 
@@ -89,11 +101,37 @@ bd show <issue-id>
 bd close <task-id>
 
 # Add comment to issue
-bd update <issue-id> --comment "text"
+bd comments add <issue-id> "comment text"
 
 # Add metadata/notes
-bd note <issue-id> "key: value"
+bd update <issue-id> --notes "key: value"
+
+# Update issue fields
+bd update <issue-id> --title "New title" --status in_progress
 
 # List tasks in a phase
 bd list --parent <phase-epic-id> --status open
+
+# Get configuration
+bd config list
+bd config get issue_prefix
+```
+
+### Creating Project Structure
+
+```bash
+# 1. Create project epic
+EPIC_ID=$(bd create --title "Feature Name" --type epic \
+  --description "Feature description" --json | jq -r '.id')
+
+# 2. Add branch metadata (REQUIRED for Ralph!)
+bd update $EPIC_ID --notes "branch: ralph/feature-name"
+
+# 3. Create tasks under epic
+bd create --title "Task 1" --parent $EPIC_ID \
+  --description "Task description with acceptance criteria"
+
+# 4. Verify structure
+bd show $EPIC_ID
+bd ready
 ```

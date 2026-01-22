@@ -53,10 +53,10 @@ Autonomous coding agent. Use Cursor.
 
 9. **Handle completion or failure:**
    - **If successful:**
-     - Add success learnings comment: `bd update <task-id> --comment "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
+     - Add success learnings comment: `bd comments add <task-id> "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
      - Close (archive) task: `bd close <task-id>` - this archives the task, preserving it for reference
    - **If unable to complete after reasonable attempts:**
-     - Leave failure comment: `bd update <task-id> --comment "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"`
+     - Leave failure comment: `bd comments add <task-id> "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"`
      - **Do NOT include suggestions** - document facts only, let next iteration determine approach
      - Comments are automatically timestamped, so next iteration can see what was tried most recently
 
@@ -75,7 +75,7 @@ Reusable patterns are stored in the project epic (top-level epic) notes/comments
 
 **Adding patterns:**
 - If you discover a reusable pattern, add it to project epic:
-  - `bd update <project-epic-id> --comment "Codebase Pattern: [pattern description]"`
+  - `bd comments add <project-epic-id> "Codebase Pattern: [pattern description]"`
 - Only general/reusable patterns, not task-specific details
 
 **Example patterns:**
@@ -204,7 +204,7 @@ After task complete, check status:
 When unable to complete a task after reasonable attempts:
 
 1. **Document the failure:**
-   - Use: `bd update <task-id> --comment "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"`
+   - Use: `bd comments add <task-id> "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"`
    - Include:
      - What was attempted (approach, code changes, etc.)
      - What failed (error messages, test failures, etc.)
@@ -227,7 +227,7 @@ When unable to complete a task after reasonable attempts:
 When task completes successfully:
 
 1. **Add learnings comment before closing:**
-   - Use: `bd update <task-id> --comment "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
+   - Use: `bd comments add <task-id> "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
    - Include:
      - What was implemented
      - Files changed

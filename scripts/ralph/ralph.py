@@ -88,8 +88,7 @@ class RalphAgent:
         """
         repo_root = Path.cwd()
         
-        # Find the project epic (top-level epic)
-        # List all epics and find the one without a parent
+        # Find the project epic (top-level epic without a parent)
         try:
             result = subprocess.run(
                 ['bd', 'list', '--type', 'epic', '--status', 'open'],
@@ -105,8 +104,9 @@ class RalphAgent:
             # bd list outputs issue IDs, we need to check each one
             epic_ids = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
             
+            # First pass: find the project epic (epic without a parent)
+            project_epic_id = None
             for epic_id in epic_ids:
-                # Get epic details to check for branch metadata
                 show_result = subprocess.run(
                     ['bd', 'show', epic_id],
                     capture_output=True,
@@ -115,15 +115,33 @@ class RalphAgent:
                     cwd=str(repo_root)
                 )
                 if show_result.returncode == 0:
-                    # Check if this epic has branch metadata
-                    # Look for "branch:" in the notes/metadata
                     output = show_result.stdout
-                    for line in output.split('\n'):
-                        if line.strip().startswith('branch:'):
-                            branch = line.split(':', 1)[1].strip()
-                            return branch if branch else None
+                    # Check if this epic has a parent (look for "Parent:" line)
+                    has_parent = any(line.strip().lower().startswith('parent:') for line in output.split('\n'))
+                    if not has_parent:
+                        # This is a top-level epic (project epic)
+                        project_epic_id = epic_id
+                        break
             
-            # If no branch found in epics, return None
+            # If no project epic found, return None
+            if not project_epic_id:
+                return None
+            
+            # Second pass: get branch metadata from project epic
+            show_result = subprocess.run(
+                ['bd', 'show', project_epic_id],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd=str(repo_root)
+            )
+            if show_result.returncode == 0:
+                output = show_result.stdout
+                for line in output.split('\n'):
+                    if line.strip().startswith('branch:'):
+                        branch = line.split(':', 1)[1].strip()
+                        return branch if branch else None
+            
             return None
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return None
@@ -159,12 +177,9 @@ class RalphAgent:
             folder_name = last_branch.replace("ralph/", "")
             
             # Security: Sanitize folder_name to prevent path traversal attacks
-            # Only allow alphanumeric, dash, underscore, and dot characters
+            # Only allow alphanumeric, dash, and underscore characters (no dots to prevent ..)
             import re
-            folder_name = re.sub(r'[^a-zA-Z0-9\-_.]', '_', folder_name)
-            # Prevent directory traversal attempts
-            if '..' in folder_name or '/' in folder_name or '\\' in folder_name:
-                folder_name = folder_name.replace('..', '_').replace('/', '_').replace('\\', '_')
+            folder_name = re.sub(r'[^a-zA-Z0-9\-_]', '_', folder_name)
             
             archive_folder = self.archive_dir / f"{date}-{folder_name}"
             
