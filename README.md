@@ -61,7 +61,7 @@ If Beads wasn't initialized or needs manual setup:
 
 ```bash
 # Initialize Beads (prefix auto-derives from directory name)
-bd init --skip-hooks
+bd init
 ```
 
 The prefix is automatically derived from your directory name (e.g., directory `myapp` → prefix `myapp` → issue IDs like `myapp-a3f2dd`).

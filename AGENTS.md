@@ -77,7 +77,7 @@ When initializing Beads in a new repository:
 
 ```bash
 # Initialize Beads (prefix auto-derived from directory name)
-bd init --skip-hooks
+bd init
 ```
 
 The prefix is automatically derived from the directory name (e.g., directory `myapp` → prefix `myapp` → issue IDs like `myapp-a3f2dd`).
@@ -86,7 +86,7 @@ The prefix is automatically derived from the directory name (e.g., directory `my
 
 ```bash
 # Initialize Beads (prefix auto-derived from directory name)
-bd init --skip-hooks
+bd init
 
 # List open epics
 bd list --type epic --status open
