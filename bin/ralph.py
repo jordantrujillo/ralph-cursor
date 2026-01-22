@@ -84,7 +84,7 @@ def handle_init(args):
         print('  Initializing Beads...', file=sys.stdout)
         try:
             result = subprocess.run(
-                ['bd', 'init', '--skip-hooks'],
+                ['bd', 'init'],
                 cwd=str(repo_root),
                 capture_output=True,
                 text=True,
