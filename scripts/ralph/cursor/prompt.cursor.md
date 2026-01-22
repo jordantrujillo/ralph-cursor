@@ -8,7 +8,7 @@ Autonomous coding agent. Use Cursor.
    - Use `bd list --type epic --status open` to find open epics
    - Find the first phase epic (hierarchical ID like `bd-{hash}.1`, `bd-{hash}.2`, etc.) with open tasks
    - Get phase epic ID (e.g., `bd-abc123.1`)
-   - If no phase epics found, check for project epic (top-level epic without parent)
+   - If no phase epics found, check for project epic (top-level epic without parent) or just work on any open task you think is the highest priority
 
 2. **Read Codebase Patterns from project epic:**
    - Find project epic (top-level epic): `bd list --type epic` and find one without parent

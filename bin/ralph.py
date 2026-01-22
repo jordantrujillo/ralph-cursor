@@ -103,6 +103,7 @@ def handle_init(args):
     required_files = [
         {'src': 'scripts/ralph/ralph.py', 'dest': 'scripts/ralph/ralph.py', 'executable': True},
         {'src': 'scripts/ralph/cursor/prompt.cursor.md', 'dest': 'scripts/ralph/cursor/prompt.cursor.md', 'executable': False},
+        {'src': '.cursorignore', 'dest': '.cursorignore', 'executable': False},
     ]
 
     created = []
