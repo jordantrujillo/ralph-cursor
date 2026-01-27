@@ -104,6 +104,8 @@ def handle_init(args):
         {'src': 'scripts/ralph/ralph.py', 'dest': 'scripts/ralph/ralph.py', 'executable': True},
         {'src': 'scripts/ralph/cursor/prompt.cursor.md', 'dest': 'scripts/ralph/cursor/prompt.cursor.md', 'executable': False},
         {'src': '.cursorignore', 'dest': '.cursorignore', 'executable': False},
+        {'src': '.cursor/hooks.json', 'dest': '.cursor/hooks.json', 'executable': False},
+        {'src': '.cursor/hooks/handle-compaction.sh', 'dest': '.cursor/hooks/handle-compaction.sh', 'executable': True},
     ]
 
     created = []

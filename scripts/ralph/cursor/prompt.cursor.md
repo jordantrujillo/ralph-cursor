@@ -22,6 +22,8 @@ Autonomous coding agent. Use Cursor.
    - Use `bd ready --parent <phase-epic-id>` to find tasks with no blockers in current phase
    - Pick the highest priority task (lowest priority number = highest priority)
    - Get task ID (e.g., `bd-abc123.1.1`)
+   - **Write task ID to `.ralph-current-task` file** so compaction hooks can identify the active task:
+     - Run: `echo "<task-id>" > .ralph-current-task`
 
 4. **Read task details and previous attempts:**
    - Read task: `bd show <task-id>`

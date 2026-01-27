@@ -1,6 +1,8 @@
 # Ralph working files (generated during runs)
 prd.yml
 .last-branch
+.ralph-compact-signal
+.ralph-current-task
 
 # Archive is optional to commit
 # archive/

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "hooks": {
+    "preCompact": [
+      {
+        "command": ".cursor/hooks/handle-compaction.sh"
+      }
+    ]
+  }
+}

@@ -37,6 +37,11 @@ class RalphAgent:
         self.last_branch_file = self.script_dir / ".last-branch"
         self.log_dir = self.script_dir / "logs"
         
+        # Get project root (repository root)
+        repo_root = Path.cwd()
+        self.signal_file = repo_root / ".ralph-compact-signal"
+        self.task_file = repo_root / ".ralph-current-task"
+        
         # Check for Beads CLI availability
         if not self._command_exists("bd"):
             raise FileNotFoundError(
@@ -212,7 +217,17 @@ class RalphAgent:
         """Run a single Cursor iteration"""
         proc = None
         log_file = None
+        signal_monitor_thread = None
         try:
+            # Clear any existing compaction signal before starting
+            self._clear_compaction_signal()
+            
+            # Clear task file (agent will write it when it selects a task)
+            try:
+                if self.task_file.exists():
+                    self.task_file.unlink()
+            except (OSError, PermissionError):
+                pass
             # Security: Validate prompt_file path to prevent path traversal
             prompt_file_path = Path(prompt_file)
             if not prompt_file_path.is_absolute():
@@ -290,6 +305,39 @@ class RalphAgent:
             
             self.running_processes.append(proc)
             
+            # Set up signal file monitoring thread
+            import threading
+            compaction_detected = threading.Event()
+            
+            def monitor_signal():
+                """Monitor for compaction signal file"""
+                while proc.poll() is None and not self.interrupted and not compaction_detected.is_set():
+                    if self._check_compaction_signal():
+                        compaction_detected.set()
+                        print("\n[RALPH] Context compaction detected - restarting with fresh context...", file=sys.stderr)
+                        # Kill the cursor process
+                        try:
+                            proc.terminate()
+                            # Wait briefly for graceful shutdown
+                            try:
+                                proc.wait(timeout=2)
+                            except subprocess.TimeoutExpired:
+                                proc.kill()
+                                proc.wait()
+                        except Exception as e:
+                            print(f"Warning: Error killing process: {e}", file=sys.stderr)
+                        # Delete signal file immediately after killing
+                        try:
+                            if self.signal_file.exists():
+                                self.signal_file.unlink()
+                        except (OSError, PermissionError) as e:
+                            print(f"Warning: Failed to delete signal file: {e}", file=sys.stderr)
+                        break
+                    time.sleep(0.5)  # Check every 500ms
+            
+            signal_monitor_thread = threading.Thread(target=monitor_signal, daemon=True)
+            signal_monitor_thread.start()
+            
             # Set up log file for debug mode
             if self.debug and iteration is not None:
                 # Create logs directory if it doesn't exist
@@ -360,27 +408,31 @@ class RalphAgent:
                     reader_thread = threading.Thread(target=read_output, daemon=True)
                     reader_thread.start()
                     
-                    # Wait for process with timeout, checking for interrupts
+                    # Wait for process with timeout, checking for interrupts and compaction signal
                     if use_timeout_cmd:
                         # timeout command handles timeout, but we need to poll to check for interrupts
-                        while proc.poll() is None and not self.interrupted:
+                        while proc.poll() is None and not self.interrupted and not compaction_detected.is_set():
                             time.sleep(0.1)  # Small sleep to avoid busy-waiting
                         # If interrupted, kill the process (signal handler may have already done this)
                         if self.interrupted and proc.poll() is None:
                             proc.kill()
                             proc.wait()
-                        exit_code = proc.returncode if proc.returncode is not None else 130
-                        # Check for timeout exit code (124 is timeout command's exit code)
-                        if exit_code == 124:
-                            print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
-                        elif self.interrupted:
-                            exit_code = 130
+                        # If compaction detected, process was already killed by monitor thread
+                        if compaction_detected.is_set():
+                            exit_code = 130  # Use 130 to indicate early termination
+                        else:
+                            exit_code = proc.returncode if proc.returncode is not None else 130
+                            # Check for timeout exit code (124 is timeout command's exit code)
+                            if exit_code == 124:
+                                print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
+                            elif self.interrupted:
+                                exit_code = 130
                     else:
                         # Use Python timeout with interrupt checking
                         try:
-                            # Poll with small intervals to check for interrupts
+                            # Poll with small intervals to check for interrupts and compaction signal
                             start_time = time.time()
-                            while proc.poll() is None and not self.interrupted:
+                            while proc.poll() is None and not self.interrupted and not compaction_detected.is_set():
                                 elapsed = time.time() - start_time
                                 if elapsed >= self.cursor_timeout:
                                     raise subprocess.TimeoutExpired(cmd, self.cursor_timeout)
@@ -389,7 +441,11 @@ class RalphAgent:
                             if self.interrupted and proc.poll() is None:
                                 proc.kill()
                                 proc.wait()
-                            exit_code = proc.returncode if proc.returncode is not None else 130
+                            # If compaction detected, process was already killed by monitor thread
+                            if compaction_detected.is_set():
+                                exit_code = 130  # Use 130 to indicate early termination
+                            else:
+                                exit_code = proc.returncode if proc.returncode is not None else 130
                         except subprocess.TimeoutExpired:
                             print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
                             proc.kill()
@@ -412,16 +468,38 @@ class RalphAgent:
                     # Buffered mode (default) - collect all output after completion
                     # Note: communicate() blocks, but signal handler will kill the process
                     # which will cause communicate() to return
+                    # We need to poll instead of using communicate() to check for compaction signal
                     if use_timeout_cmd:
+                        # Poll with timeout checking
+                        start_time = time.time()
+                        while proc.poll() is None and not self.interrupted and not compaction_detected.is_set():
+                            elapsed = time.time() - start_time
+                            if elapsed >= self.cursor_timeout:
+                                proc.kill()
+                                break
+                            time.sleep(0.1)
                         stdout, _ = proc.communicate()
-                        exit_code = proc.returncode
-                        # Check for timeout exit code (124 is timeout command's exit code)
-                        if exit_code == 124:
-                            print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
+                        if compaction_detected.is_set():
+                            exit_code = 130  # Compaction detected
+                        else:
+                            exit_code = proc.returncode if proc.returncode is not None else 130
+                            # Check for timeout exit code (124 is timeout command's exit code)
+                            if exit_code == 124:
+                                print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
                     else:
                         try:
-                            stdout, _ = proc.communicate(timeout=self.cursor_timeout)
-                            exit_code = proc.returncode
+                            # Poll with timeout and compaction checking
+                            start_time = time.time()
+                            while proc.poll() is None and not self.interrupted and not compaction_detected.is_set():
+                                elapsed = time.time() - start_time
+                                if elapsed >= self.cursor_timeout:
+                                    raise subprocess.TimeoutExpired(cmd, self.cursor_timeout)
+                                time.sleep(0.1)
+                            stdout, _ = proc.communicate()
+                            if compaction_detected.is_set():
+                                exit_code = 130  # Compaction detected
+                            else:
+                                exit_code = proc.returncode
                         except subprocess.TimeoutExpired:
                             print(f"Warning: Cursor iteration timed out after {self.cursor_timeout} seconds", file=sys.stderr)
                             proc.kill()
@@ -432,6 +510,10 @@ class RalphAgent:
                     if self.interrupted:
                         # Process was killed by signal handler, exit_code may not be accurate
                         exit_code = 130
+                    
+                    # Check if compaction was detected
+                    if compaction_detected.is_set():
+                        exit_code = 130  # Indicate early termination due to compaction
                     
                     # Print to stderr for viewing
                     print(stdout, file=sys.stderr, end='', flush=True)
@@ -450,6 +532,13 @@ class RalphAgent:
                     log_file.close()
                     log_file = None
             
+            # Clean up signal file if it still exists (defensive cleanup)
+            self._clear_compaction_signal()
+            
+            # If compaction was detected, return empty output to trigger restart
+            if 'compaction_detected' in locals() and compaction_detected.is_set():
+                return ""
+            
             return stdout
         except Exception as e:
             print(f"Error running cursor: {e}", file=sys.stderr)
@@ -464,6 +553,8 @@ class RalphAgent:
                         pass
             if log_file:
                 log_file.close()
+            # Clean up signal file on error
+            self._clear_compaction_signal()
             return ""
     
     def _command_exists(self, command):
@@ -478,6 +569,18 @@ class RalphAgent:
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
+    
+    def _check_compaction_signal(self):
+        """Check if compaction signal file exists"""
+        return self.signal_file.exists()
+    
+    def _clear_compaction_signal(self):
+        """Remove compaction signal file if it exists"""
+        try:
+            if self.signal_file.exists():
+                self.signal_file.unlink()
+        except (OSError, PermissionError) as e:
+            print(f"Warning: Failed to clear compaction signal file: {e}", file=sys.stderr)
     
     def _check_completion(self, output):
         """Check if output contains completion signal"""
@@ -521,6 +624,15 @@ class RalphAgent:
             
             # Remove completed process from tracking
             self.running_processes = [p for p in self.running_processes if p.poll() is None]
+            
+            # Check if compaction signal was detected (empty output indicates restart)
+            if output == "" and self._check_compaction_signal():
+                print("")
+                print(f"Context compaction detected in iteration {i}. Restarting with fresh context...")
+                # Signal file should already be deleted by the monitor thread, but ensure it's gone
+                self._clear_compaction_signal()
+                # Continue to next iteration (fresh context)
+                continue
             
             # Check for completion signal
             if self._check_completion(output):
