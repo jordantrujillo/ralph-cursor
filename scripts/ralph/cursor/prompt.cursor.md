@@ -1,84 +1,56 @@
 # Ralph Agent Instructions (Cursor)
 
-Autonomous coding agent. Use Cursor.
+Autonomous coding agent. Cursor.
 
 ## Task
 
-1. **Find current phase epic:**
-   - Use `bd list --type epic --status open` to find open epics
-   - Find the first phase epic (hierarchical ID like `bd-{hash}.1`, `bd-{hash}.2`, etc.) with open tasks
-   - Get phase epic ID (e.g., `bd-abc123.1`)
-   - If no phase epics found, check for project epic (top-level epic without parent) or just work on any open task you think is the highest priority
+1. **Phase epic**
+   - `bd list --type epic --status open`
+   - First phase epic (id like `bd-{hash}.1`, `bd-{hash}.2`, …) that still has open tasks → grab phase epic id
+   - Zero phase epics → top-level project epic OR highest-prio open task you judge
 
-2. **Checkout/create phase branch:**
-   - Get phase branch from phase epic metadata: `bd show <phase-epic-id>`
-   - Look for "branch:" in the notes/metadata
-   - Branch missing:
-     - Phase 1: Create from current branch
-     - Phase N (N > 1): Create from previous phase branch
-   - Checkout phase branch
+2. **Phase branch**
+   - `bd show <phase-epic-id>` → notes/metadata → `branch:`
+   - Branch missing: Phase 1 → from current branch | Phase N>1 → from previous phase branch
+   - Checkout that branch
 
-3. **Select task:**
-   - Use `bd ready --parent <phase-epic-id>` to find tasks with no blockers in current phase
-   - Pick the highest priority task (lowest priority number = highest priority)
-   - Get task ID (e.g., `bd-abc123.1.1`)
+3. **Task pick**
+   - `bd ready --parent <phase-epic-id>` (no blockers)
+   - Lowest `priority` number = highest priority → that task id (e.g. `bd-abc123.1.1`)
 
-4. **Read task details and previous attempts:**
-   - Read task: `bd show <task-id>`
-   - **Critical: Review comments from previous iterations**
-     - Comments are automatically timestamped (most recent first)
-     - Pay special attention to the most recent comments
-     - Learn from failures: avoid repeating approaches that didn't work
-     - Build on previous attempts rather than starting from scratch
-   - Extract story ID from task metadata (if present): look for "story-id: US-001" in notes
+4. **Read task + prior runs**
+   - `bd show <task-id>`
+   - **Must:** read comments from earlier iterations (auto-timestamped, newest first) → don’t repeat dead ends → extend prior work don’t restart blind
+   - Notes: `story-id: US-001` etc. if present
 
-5. **Implement the task:**
-   - Follow acceptance criteria from task description
-   - Follow codebase conventions from `.cursor/rules/*` files (automatically applied by Cursor), unless they are conflicting with the task requirements or prompts.
-   - Avoid approaches that failed in previous attempts (from comments)
+5. **Implement**
+   - Task description = acceptance criteria
+   - `.cursor/rules/*` (Cursor applies by globs) unless fight w/ task/prompts → task/prompts win
+   - Skip approaches comments already killed
 
-6. **Run quality checks:**
-   - Typecheck
-   - Lint
-   - Test (if applicable)
+6. **Quality**
+   - Typecheck + lint + tests when applicable
 
-7. **Update Cursor rules if reusable patterns found** (see below)
+7. **Cursor rules** — reusable pattern found? → section below
 
-8. **Handle completion or failure:**
-   - **If successful:**
-     - Add success learnings comment: `bd comments add <task-id> "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
-     - Close (archive) task: `bd close <task-id>` - this archives the task, preserving it for reference
-   - **If unable to complete after reasonable attempts:**
-     - Leave failure comment: `bd comments add <task-id> "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"` root cause can be unknown.
-     - **Do NOT include suggestions** - document facts only, let next iteration determine approach
-     - Comments are automatically timestamped, so next iteration can see what was tried most recently
+8. **Finish or bail**
+   - **OK:** `bd comments add <task-id> "Completed: [what]. Files: [paths]. Learnings: [patterns/gotchas/context]"` then `bd close <task-id>` (archive, kept for ref)
+   - **Stuck:** `bd comments add <task-id> "Attempt failed: [desc]. Tried: [approach]. Error: [err]. Root cause: [cause|unknown]"` — **no suggestions**, facts only → next iteration picks strategy
+   - Comments timestamped → newest tries obvious next run
 
-9. **Commit changes if successful:**
-    - Commit with format: `feat: [Story ID] - [Task Title]` (if story ID exists) or `feat: [Beads ID] - [Task Title]` (fallback)
-    - Attempt to Push changes if successful
+9. **Commit on success**
+   - Message: `feat: [Story ID] - [Task Title]` if story id else `feat: [Beads ID] - [Task Title]`
+   - Push when commit clean
 
 ## Update Cursor Rules
 
-Before commit, check edited files for learnings:
+Before commit: dirs you touched → walk up for `.cursor/rules/*.mdc`
 
-1. Find directories with edited files
-2. Check for `.cursor/rules/*.mdc` files in those/parent directories
-3. **Check for conflicts first:**
-   - If existing rules conflict with task requirements, prompts, or new information: **overwrite or remove the conflicting rule**
-   - Rules must reflect current codebase reality, not outdated patterns
-   - When in doubt, task requirements and prompts take precedence over existing rules
-4. If no rule file exists for that area, create one:
-   - Create `.cursor/rules/[area-name].mdc` (e.g., `api.mdc`, `ui-components.mdc`, `database.mdc`)
-   - Use appropriate `globs` in frontmatter to scope the rule (e.g., `["**/api/**", "**/routes/**"]` for API rules)
-   - Set `alwaysApply: false` if rule should only apply when files match globs, `alwaysApply: true` for project-wide rules
-5. Add valuable learnings as concise rules:
-   - API patterns/conventions for that module
-   - Gotchas/non-obvious requirements
-   - File dependencies
-   - Testing approaches
-   - Config/env requirements
+1. Conflict w/ task, prompts, or new facts → **overwrite or remove** bad rule. Rules = current repo truth. Tie-break: task + prompts > old rules.
+2. No rule for area → add `.cursor/rules/[area].mdc` (e.g. `api.mdc`, `ui-components.mdc`) w/ `globs` scoped right; `alwaysApply: false` unless truly global.
+3. Add only durable bullets: API conventions, gotchas, deps between files, how to test, env/config needs.
 
-**Cursor Rule Format:**
+**Rule template:**
 ```markdown
 ---
 description: "Rules for [module/area]"
@@ -88,140 +60,81 @@ globs:
 alwaysApply: false
 ---
 
-- Modifying X requires updating Y
-- Module uses pattern Z for API calls
-- Tests need dev server on PORT 3000
-- Field names must match template exactly
+- Change X → must touch Y
+- API pattern Z here
+- Tests need dev server PORT 3000
+- Field names match template exactly
 ```
 
-**Good Cursor rule additions:**
-- "Modifying X requires updating Y"
-- "Module uses pattern Z for API calls"
-- "Tests need dev server on PORT 3000"
-- "Field names must match template exactly"
-- "Always use parameterized queries for database operations"
+**Good adds:** concrete must/don’t, deps, env, SQL parameterized, etc.
 
-**Don't add:**
-- Task-specific details
-- Temporary debug notes
-- Vague or non-actionable statements
+**Skip:** one-off task noise, temp debug, vague “be careful” w/ no action.
 
-**Rule scoping:**
-- Project-wide patterns: Use `.cursor/rules/project.mdc` with `alwaysApply: true` and `globs: ["**/*"]`
-- Directory-specific: Use appropriate globs (e.g., `["**/backend/**"]` for backend rules)
-- File-type specific: Use file extensions in globs (e.g., `["**/*.sql"]` for SQL rules)
+**Scope:** global → `project.mdc`, `alwaysApply: true`, `globs: ["**/*"]` | dir → globs like `**/backend/**` | type → `**/*.sql`
 
-**Handling conflicts:**
-- **If a rule conflicts with task requirements, prompts, or new information: overwrite or remove it**
-- Rules must always reflect current codebase reality
-- Task requirements and prompts take precedence over existing rules
-- Update rules when you discover they're outdated or incorrect
-- Only update if genuinely reusable knowledge for future work
+**Conflicts again:** task/prompt/new info beats stale rule → fix or delete rule. Only update when knowledge actually reusable.
 
 ## Quality
 
-- All commits must pass quality checks (typecheck, lint, test)
-- No broken code commits
-- Keep changes focused/minimal
-- Follow existing patterns
+- Commits pass typecheck + lint + tests
+- No broken-code commits
+- Small focused diffs
+- Match existing patterns
 
-## Browser Testing (Frontend Required)
+## Browser (frontend work)
 
-UI task changes? Must verify in browser:
+UI task → verify in browser:
 
-- Browser MCP tools available:
-  1. Navigate to page
-  2. Verify UI works
-  3. Screenshot if helpful
-- No browser MCP tools:
-  - Ensure automated tests (Playwright, Cypress) cover UI
-  - If tests not feasible: Mark "needs manual verification" in task comment
-  - Don't mark complete until verified
+- MCP browser: navigate → exercise UI → screenshot if helps
+- No MCP: Playwright/Cypress cover UI OR comment `needs manual verification` — don’t call done until verified somehow
 
-Frontend task NOT complete until browser verification passes (MCP tools or automated tests).
+Frontend “done” = browser MCP pass OR automated UI tests pass.
 
-## Stop Condition
+## Stop condition
 
-After task complete, check status:
+After close + checks:
 
-1. **Current phase complete?**
-   - After closing task with `bd close <task-id>`, check if phase is complete:
-     - Run: `bd list --parent <phase-epic-id> --status open`
-     - If empty: all tasks in phase are closed (archived), phase is complete
-   - If phase complete:
-     - Check if there are more phase epics (check parent epic for other phase children)
-     - If all phase epics complete: Reply `<promise>COMPLETE</promise>`
-     - If more phases exist: End normally (next iteration will move to next phase branch)
+1. **Phase empty?** `bd list --parent <phase-epic-id> --status open` empty after `bd close` → phase done → more phase epics under project? all done → reply `<promise>COMPLETE</promise>` | else end normal (next iter advances branch)
+2. **All work done?** → `<promise>COMPLETE</promise>`
+3. **Tasks left?** → end normal
 
-2. **ALL tasks complete?**
-   - Reply: `<promise>COMPLETE</promise>`
-   
-3. **Still incomplete tasks?**
-   - End normally (next iteration picks up)
-
-**Phase transition:** Phase complete? Next iteration moves to next phase branch. Don't handle transitions in single iteration - just complete tasks in current phase.
+Phase transition = next iter’s job. This iter: only current phase branch + tasks.
 
 ## Important
 
-- ONE task per iteration
-- **Only tasks from current phase**
-- **On correct phase branch before starting**
-- **Phase branches: Phase 1 from current branch, Phase N from previous phase branch**
-- **Read previous attempt comments before starting work** - learn from failures
-- **Leave detailed comments when unable to complete** - help next iteration
-- Commit frequently
-- Keep CI green
-- Use Cursor file editing
-- Use `.cursor/rules/*` for repo conventions (automatically applied by Cursor based on file globs)
+- One task per iter
+- Only tasks under current phase epic
+- Correct phase branch before code
+- Phase 1 branch from whatever branch at Ralph start; Phase N from Phase N-1 branch
+- Read failure comments before coding
+- Stuck → rich factual comment, zero “try X next” armchair
+- Commit often, CI green
+- Prefer Cursor file edits
+- `.cursor/rules/*` = repo conventions (globs)
 
-## Phase Branch Management
+## Phase branches
 
-- **Phase 1:** Create from current branch (whatever branch when starting Ralph)
-- **Phase N (N > 1):** Create from previous phase branch
-- Each phase = separate PR
-- Phase branch = that phase work + previous phases as base
+- Phase 1: from current branch when Ralph started
+- Phase N>1: from previous phase branch
+- One phase ≈ one PR; branch stacks on prior phases
 
-## Failure Handling
+## Failure comment
 
-When unable to complete a task after reasonable attempts:
+Stuck after real tries:
 
-1. **Document the failure:**
-   - Use: `bd comments add <task-id> "Attempt failed: [description]. Tried: [approach]. Error: [error]. Root cause: [cause]"`
-   - Include:
-     - What was attempted (approach, code changes, etc.)
-     - What failed (error messages, test failures, etc.)
-     - Why it failed (root cause if identified)
-   - **Do NOT include suggestions** - document facts only, let next iteration determine approach
+- `bd comments add <task-id> "Attempt failed: … Tried: … Error: … Root cause: …"`
+- What you tried, what broke, why if known
+- **No suggestions** — next agent decides
 
-2. **Comments are automatically timestamped:**
-   - Beads automatically adds timestamps to comments
-   - Most recent comments appear first when reading task
-   - Next iteration can see what was tried most recently
+Timestamps → history + “what’s fresh” obvious.
 
-3. **Benefits:**
-   - Complete history of all attempts preserved
-   - Next iteration can see what was tried most recently
-   - Builds knowledge over multiple attempts
-   - Helps identify patterns in failures
+## Success comment
 
-## Success Learnings
+Before `bd close`:
 
-When task completes successfully:
+- `bd comments add <task-id> "Completed: … Files: … Learnings: …"`
+- Impl summary, paths, patterns, gotchas, context for later
 
-1. **Add learnings comment before closing:**
-   - Use: `bd comments add <task-id> "Completed: [what implemented]. Files: [files changed]. Learnings: [patterns/gotchas/context]"`
-   - Include:
-     - What was implemented
-     - Files changed
-     - Patterns discovered
-     - Gotchas encountered
-     - Context for future reference
+Then `bd close <task-id>`. Comments survive archive.
 
-2. **Then close the task:**
-   - `bd close <task-id>` - this archives the task, preserving it for reference
-   - Learnings are preserved in task comments even after closing
-
-3. **Benefits:**
-   - Learnings preserved for similar tasks
-   - Helps build knowledge base over time
-   - Can be referenced later for similar work
+Why: knowledge compounds across iters.

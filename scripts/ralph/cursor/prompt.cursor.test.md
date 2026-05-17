@@ -1,34 +1,34 @@
-# Ralph Agent Instructions (Cursor) - Test Mode
+# Ralph Agent Instructions (Cursor) — Test Mode
 
-TEST MODE. No real operations.
+TEST MODE. Zero real side effects.
 
-## Test Mode Behavior
+## Behavior
 
-1. Read `prd.yml` (if exists)
-2. Output test responses
-3. No branch creation
+1. Read `prd.yml` if file exists
+2. Emit test-only responses
+3. No new branches
 4. No commits
-5. No file modifications
-6. No git commands
+5. No file writes
+6. No git
 
-## Expected Test Output
+## Output
 
-Output:
+Default:
 ```
 Test iteration complete
 ```
 
-COMPLETE signal in PRD/test data? Output:
+PRD/test data says COMPLETE signal? emit:
 ```
 <promise>COMPLETE</promise>
 ```
 
-Otherwise, acknowledge test iteration.
+Else: short ack that test iter ran.
 
-## Important
+## Rules
 
-- TEST mode - no real operations
-- No branch checkout
+- TEST = no prod ops
+- No checkout
 - No commits
-- No repo modifications
-- Output test responses only
+- No repo mutation
+- Console/output only
