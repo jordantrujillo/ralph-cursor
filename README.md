@@ -17,33 +17,53 @@ Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
 ## Installation
 
-### Install Ralph CLI
+### Bootstrap (once per machine)
 
-Install the Ralph CLI globally:
+From your **ralph-cursor** clone (this repository):
 
 ```bash
-# From the ralph-cursor repository root
-./install.sh
+python3 bin/ralph.py install-cursor
 ```
 
-This installs the `ralph` command to `~/.local/bin` (or `/usr/local/bin` if that's not writable). Make sure this directory is in your PATH.
+This copies Ralph slash commands to **`~/.cursor/commands/`** (including `/ralph-setup`), records the clone path in **`~/.config/ralph-cursor/package_root`**, and optionally installs the **`ralph-portable`** skill under `~/.cursor/skills-cursor/`. Reload Cursor if new commands do not show up.
 
-### Initialize Ralph in your project
+The legacy **`./install.sh`** script only prints this one-liner; it is no longer the supported installer.
 
-Navigate to your project directory and initialize Ralph:
+Optional: put the CLI on your PATH (example):
 
 ```bash
-# Basic initialization
+ln -sf "$(pwd)/bin/ralph.py" "$HOME/.local/bin/ralph"
+```
+
+### Per-project setup (any repo)
+
+1. Open the project in Cursor (or `cd` there in a terminal).
+2. **`bd init`** if `.beads/` is not present yet.
+3. Merge recommended **`.gitignore`** entries (PRD glob, Beads, legacy runner noise; **`AGENTS.md` / `CLAUDE.md`** only when present and **untracked** — typical right after `bd init`):
+
+   ```bash
+   RALPH_ROOT=$(tr -d '\n' < ~/.config/ralph-cursor/package_root)
+   python3 "$RALPH_ROOT/bin/ralph.py" setup --project "$(pwd)"
+   ```
+
+4. Use slash commands such as **`/ralph-setup`**, **`/generate-prd`**, **`/prd-to-beads`** (they live under `~/.cursor/commands/`, not in each repo).
+
+### Legacy: `ralph init` (in-repo runner)
+
+If you want **`scripts/ralph/`** inside a specific repository (older workflow):
+
+```bash
 ralph init
-
-# With CLI config template
 ralph init --cursor-cli
-
-# Overwrite existing files
 ralph init --force
 ```
 
-This copies the necessary Ralph files into your project's `scripts/ralph/` directory and initializes Beads if needed.
+Options:
+
+- **`--copy-project-commands`** — also copy `.cursor/commands/*.md` into that repo (not recommended; prefer global commands).
+- **`--no-cursorignore`** — do not add `.cursorignore` to the repo.
+
+`ralph init` still copies the runner and prompt into `scripts/ralph/` and initializes Beads if needed.
 
 ### Verify Beads Initialization
 
@@ -70,28 +90,33 @@ The prefix is automatically derived from your directory name (e.g., directory `m
 
 ### 1. Create a PRD
 
-Generate a PRD using Cursor in the IDE with the repo's slash commands under [`.cursor/commands/`](.cursor/commands/) (e.g. PRD helpers), or create one manually. Optional: add [`.cursor/rules/`](.cursor/rules/) (`.mdc` files) for project-specific Cursor rules. Iterate with the agent until the PRD is ready, then read it carefully before running Ralph. 
+Generate a PRD using Cursor slash commands (installed globally under **`~/.cursor/commands/`** after `install-cursor`, e.g. **`/generate-prd`**), or create one manually. Optional: add [`.cursor/rules/`](.cursor/rules/) (`.mdc` files) for project-specific Cursor rules. Iterate with the agent until the PRD is ready, then read it carefully before running Ralph. 
 
 ### 2. Convert PRD to Beads Issues
 
-> **Note**: There are no bundled shell/Python converters for PRD → Beads. Create issues with the `bd` CLI (see [`.cursor/commands/prd-to-beads.md`](.cursor/commands/prd-to-beads.md) for the workflow and command reference).
+> **Note**: There are no bundled shell/Python converters for PRD → Beads. Create issues with the `bd` CLI (see the **`prd-to-beads`** slash command / `~/.cursor/commands/prd-to-beads.md` for the workflow and command reference).
 
 ### 3. Run Ralph
 
-Use the Ralph CLI to run the agent loop:
+**Portable (recommended):** run the bundled loop against any repo that has **`.beads/`** — no `scripts/ralph/` copy required in that repo:
 
 ```bash
-# Run with default settings (10 iterations)
+RALPH_ROOT=$(tr -d '\n' < ~/.config/ralph-cursor/package_root)
+python3 "$RALPH_ROOT/bin/ralph.py" run --project /path/to/your/repo
+
+# Or from inside the target repo:
+python3 "$RALPH_ROOT/bin/ralph.py" run --project "$(pwd)"
+```
+
+**Legacy:** from a repo where you ran **`ralph init`**:
+
+```bash
 ralph run
-
-# Run with custom iteration count
 ralph run 20
-
-# Run with timeout and model selection
 ralph run 10 --cursor-timeout 3600 --model claude-3.5-sonnet
 ```
 
-You can also run the Python script directly:
+You can also invoke the runner script directly inside that repo:
 
 ```bash
 python3 scripts/ralph/ralph.py [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
@@ -112,9 +137,11 @@ The runner loop will invoke Cursor CLI repeatedly. The worker prompt instructs i
 
 | File | Purpose |
 |------|---------|
-| `bin/ralph.py` | The Ralph CLI tool (`ralph init` and `ralph run` commands) |
+| `bin/ralph.py` | CLI: `install-cursor`, `setup`, `init`, `run` (supports `--project`), `version`, `uninstall` |
 | `scripts/ralph/ralph.py` | The Python loop that spawns fresh Cursor invocations |
 | `scripts/ralph/cursor/prompt.cursor.md` | Instructions given to each Cursor iteration |
+| `.cursor/commands/*.md` | Source for global Cursor commands (copied by `install-cursor`) |
+| `~/.config/ralph-cursor/package_root` | One-line path to this clone (written by `install-cursor`) |
 | `.beads/` | Beads git-backed JSONL storage (task tracking) |
 | `flowchart/` | Interactive visualization of how Ralph works |
 
@@ -230,30 +257,51 @@ Edit the worker prompt to customize Ralph's behavior for your project:
 - Include codebase conventions
 - Add common gotchas for your stack
 
-Worker prompt location:
+Worker prompt (bundled runner in this repo):
 - `scripts/ralph/cursor/prompt.cursor.md`
+
+Portable mode uses the same prompt from the **ralph-cursor** checkout (via `ralph run --project`).
 
 ## CLI Commands
 
-### `ralph init`
+### `ralph install-cursor`
 
-Initialize Ralph in your current repository:
+Copy global Cursor slash commands and record this clone’s path:
 
 ```bash
-ralph init [--force] [--cursor-cli]
+python3 bin/ralph.py install-cursor [--force]
+```
+
+### `ralph setup`
+
+Merge a Ralph **`.gitignore`** block (PRDs, `.beads/`, legacy runner paths). Also adds **`AGENTS.md`** and **`CLAUDE.md`** when those files exist at the repo root and are **not** in git yet (so Beads-created files are ignored; pre-existing tracked copies are left alone).
+
+```bash
+ralph setup [--project DIR] [--skip-gitignore]
+```
+
+### `ralph init`
+
+Legacy in-repo runner under `scripts/ralph/`:
+
+```bash
+ralph init [--force] [--cursor-cli] [--copy-project-commands] [--no-cursorignore]
 ```
 
 Options:
 - `--force` - Overwrite existing files
 - `--cursor-cli` - Also install `.cursor/cli.json` template
+- `--copy-project-commands` - Copy `.cursor/commands/*.md` into this repo (not recommended)
+- `--no-cursorignore` - Do not add `.cursorignore`
 
 ### `ralph run`
 
-Run the Ralph agent loop:
-
 ```bash
-ralph run [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
+ralph run [--project DIR] [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
 ```
+
+- **`--project DIR`** — portable mode: bundled `scripts/ralph/ralph.py` from this package, `cwd=DIR`; requires **`DIR/.beads/`**
+- Without **`--project`**: uses **`./scripts/ralph/ralph.py`** in the current repo (after `ralph init`)
 
 Arguments:
 - `max_iterations` - Maximum number of iterations (default: 10)

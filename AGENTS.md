@@ -13,15 +13,25 @@ cd flowchart && npm run dev
 # Build the flowchart
 cd flowchart && npm run build
 
-# Run Ralph (from your project that has Beads initialized)
+# Bootstrap global Cursor commands (once per machine, from ralph-cursor clone)
+python3 bin/ralph.py install-cursor
+
+# Portable loop: any repo with .beads/ (cwd = that repo)
+python3 /path/to/ralph-cursor/bin/ralph.py run --project "$(pwd)" [max_iterations] [--cursor-timeout SECONDS]
+
+# Legacy: in-repo runner after `ralph init`
 python3 scripts/ralph/ralph.py [max_iterations] [--cursor-timeout SECONDS]
 
-# Convert PRD markdown to Beads issues (manual bd commands — see command doc)
-# .cursor/commands/prd-to-beads.md
+# Merge Ralph .gitignore block (adds AGENTS.md/CLAUDE.md only when untracked — typical after bd init)
+python3 /path/to/ralph-cursor/bin/ralph.py setup --project "$(pwd)"
+
+# Convert PRD markdown to Beads issues (manual bd commands — see global command prd-to-beads)
+# ~/.cursor/commands/prd-to-beads.md after install-cursor
 ```
 
 ## Key Files
 
+- `bin/ralph.py` - CLI (`install-cursor`, `setup`, `init`, `run` with `--project`, …)
 - `scripts/ralph/ralph.py` - The Python loop (Cursor worker)
 - `scripts/ralph/cursor/prompt.cursor.md` - Instructions given to each Cursor iteration
 - `.beads/` - Beads git-backed JSONL storage (task tracking)
@@ -37,7 +47,8 @@ Interactive diagram (React Flow) in `flowchart/`: `cd flowchart && npm install &
 - Memory persists via git history, Beads issue comments, and Beads issue metadata
 - Tasks should be small enough to complete in one context window
 - Always update AGENTS.md with discovered patterns for future iterations
-- Cursor-specific prompts are in `scripts/ralph/cursor/` subfolder
+- Cursor slash commands for PRD / setup ship globally under `~/.cursor/commands/` (`ralph install-cursor` from this clone); see `~/.config/ralph-cursor/package_root` for the recorded clone path
+- Cursor-specific prompts are in `scripts/ralph/cursor/` subfolder (bundled with the runner in this repo)
 - `scripts/ralph/.last-branch` is written by the runner for branch tracking (gitignored); delete locally if it shows up as noise—it is not meant to be committed
 
 ## Phases and Branching
