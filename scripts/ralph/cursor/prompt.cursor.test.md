@@ -4,7 +4,7 @@ TEST MODE. Zero real side effects.
 
 ## Behavior
 
-1. Read `prd.yml` if file exists
+1. Task context comes from Beads (`bd`); test mode does not mutate the repo
 2. Emit test-only responses
 3. No new branches
 4. No commits
@@ -18,7 +18,7 @@ Default:
 Test iteration complete
 ```
 
-PRD/test data says COMPLETE signal? emit:
+Stub output includes COMPLETE signal? emit:
 ```
 <promise>COMPLETE</promise>
 ```

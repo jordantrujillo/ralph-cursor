@@ -39,7 +39,6 @@ def test_ralph_init_creates_directory_and_files():
         # Check that required files were created
         required_files = [
             'scripts/ralph/ralph.py',
-            'scripts/ralph/prd.yml.example',
             'scripts/ralph/cursor/prompt.cursor.md',
         ]
 
@@ -219,8 +218,6 @@ def test_ralph_init_installs_cursor_files():
         ralph_py_path = Path(test_dir) / 'scripts/ralph/ralph.py'
         assert ralph_py_path.exists()
 
-        prd_example_path = Path(test_dir) / 'scripts/ralph/prd.yml.example'
-        assert prd_example_path.exists()
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)
 

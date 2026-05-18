@@ -70,13 +70,11 @@ The prefix is automatically derived from your directory name (e.g., directory `m
 
 ### 1. Create a PRD
 
-Generate a PRD using Cursor in the IDE with the repo's Cursor rules (see `.cursor/rules/`), or create one manually. It is recommended to go back and forth with the agent until you are happy with the PRD. Important that you take the time to READ it. 
+Generate a PRD using Cursor in the IDE with the repo's slash commands under [`.cursor/commands/`](.cursor/commands/) (e.g. PRD helpers), or create one manually. Optional: add [`.cursor/rules/`](.cursor/rules/) (`.mdc` files) for project-specific Cursor rules. Iterate with the agent until the PRD is ready, then read it carefully before running Ralph. 
 
 ### 2. Convert PRD to Beads Issues
 
-> **Note**: The automated conversion scripts (`convert-to-beads.sh` and `migrate-prd-to-beads.py`) are not yet implemented. 
-> For now, you'll need to manually create Beads issues using the `bd` CLI commands. 
-> See `.cursor/commands/prd-to-beads.md` for the conversion process and Beads command reference.
+> **Note**: There are no bundled shell/Python converters for PRD → Beads. Create issues with the `bd` CLI (see [`.cursor/commands/prd-to-beads.md`](.cursor/commands/prd-to-beads.md) for the workflow and command reference).
 
 ### 3. Run Ralph
 

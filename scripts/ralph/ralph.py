@@ -188,7 +188,7 @@ class RalphAgent:
             print(f"Note: With Beads, completed tasks are automatically archived when closed.")
             
             # Beads handles its own archiving, so we don't need to archive Beads files
-            # The archive folder is kept for reference but won't contain prd.yml or progress.txt
+            # The archive folder is kept for reference
     
     def _track_current_branch(self):
         """Track current branch"""

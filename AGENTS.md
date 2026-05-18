@@ -16,11 +16,8 @@ cd flowchart && npm run build
 # Run Ralph (from your project that has Beads initialized)
 python3 scripts/ralph/ralph.py [max_iterations] [--cursor-timeout SECONDS]
 
-# Convert PRD markdown to Beads issues using Cursor CLI
-./scripts/ralph/cursor/convert-to-beads.sh tasks/prd-[feature-name].md [--model MODEL]
-
-# Migrate existing prd.yml to Beads issues
-python3 scripts/ralph/migrate-prd-to-beads.py [prd.yml path]
+# Convert PRD markdown to Beads issues (manual bd commands — see command doc)
+# .cursor/commands/prd-to-beads.md
 ```
 
 ## Key Files
@@ -32,14 +29,7 @@ python3 scripts/ralph/migrate-prd-to-beads.py [prd.yml path]
 
 ## Flowchart
 
-The `flowchart/` directory contains an interactive visualization built with React Flow. It's designed for presentations - click through to reveal each step with animations.
-
-To run locally:
-```bash
-cd flowchart
-npm install
-npm run dev
-```
+Interactive diagram (React Flow) in `flowchart/`: `cd flowchart && npm install && npm run dev` (production build: `npm run build`). See [README.md](README.md) for more context.
 
 ## Patterns
 
@@ -48,6 +38,7 @@ npm run dev
 - Tasks should be small enough to complete in one context window
 - Always update AGENTS.md with discovered patterns for future iterations
 - Cursor-specific prompts are in `scripts/ralph/cursor/` subfolder
+- `scripts/ralph/.last-branch` is written by the runner for branch tracking (gitignored); delete locally if it shows up as noise—it is not meant to be committed
 
 ## Phases and Branching
 
@@ -125,13 +116,13 @@ EPIC_ID=$(bd create --title "Feature Name" --type epic \
   --description "Feature description" --json | jq -r '.id')
 
 # 2. Add branch metadata (REQUIRED for Ralph!)
-bd update $EPIC_ID --notes "branch: ralph/feature-name"
+bd note "$EPIC_ID" "branch: ralph/feature-name"
 
 # 3. Create tasks under epic
-bd create --title "Task 1" --parent $EPIC_ID \
+bd create --title "Task 1" --type task --parent "$EPIC_ID" \
   --description "Task description with acceptance criteria"
 
 # 4. Verify structure
-bd show $EPIC_ID
+bd show "$EPIC_ID"
 bd ready
 ```

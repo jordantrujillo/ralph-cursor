@@ -12,10 +12,12 @@ Take a PRD (markdown file or text) and convert it to Beads issues using `bd` com
 
 ## Beads Commands Reference
 
-- `bd epic create <title> [--description TEXT] [--parent EPIC_ID]` - Create an epic
-- `bd task create <title> [--description TEXT] [--parent EPIC_ID] [--priority NUMBER]` - Create a task
-- `bd note <ISSUE_ID> "text"` - Add metadata/notes to an issue
-- `bd dep add <CHILD_ID> <PARENT_ID>` - Add dependency (child depends on parent)
+Commands match the `bd` CLI (`bd create`, `bd note`, `bd dep`, …). Epics and tasks are created with `bd create` and `--type epic` or `--type task` (task is the default type if `--type` is omitted). Shell examples that capture new issue ids use `--json` and require [`jq`](https://jqlang.org/) on your PATH.
+
+- `bd create --title "<title>" --type epic [--description TEXT] [--parent PARENT_ID] [--json]` — Create an epic (use `--json | jq -r '.id'` in scripts to capture the new id)
+- `bd create --title "<title>" --type task [--description TEXT] [--parent PARENT_ID] [--priority N] [--json]` — Create a task
+- `bd note <ISSUE_ID> "text"` - Append a note to an issue (metadata such as `branch: …`, `story-id: …`)
+- `bd dep add <CHILD_ID> <PARENT_ID>` - Add dependency (child depends on parent / blocked until parent completes)
 - `bd show <ISSUE_ID>` - Show issue details
 - `bd list [--type epic|task] [--parent EPIC_ID] [--status open|closed]` - List issues
 
@@ -28,12 +30,13 @@ Take a PRD (markdown file or text) and convert it to Beads issues using `bd` com
 Create the project epic first:
 
 ```bash
-bd epic create "<Project Name>" --description "<Project description>"
+PROJECT_EPIC=$(bd create --title "<Project Name>" --type epic \
+  --description "<Project description>" --json | jq -r '.id')
 ```
 
 Store branch name in notes:
 ```bash
-bd note <project-epic-id> "branch: ralph/feature-name-kebab-case"
+bd note "$PROJECT_EPIC" "branch: ralph/feature-name-kebab-case"
 ```
 
 ### 2. Create Phase Epics
@@ -41,12 +44,13 @@ bd note <project-epic-id> "branch: ralph/feature-name-kebab-case"
 For each phase, create a phase epic with parent = project epic:
 
 ```bash
-bd epic create "Phase N: <Phase Description>" --description "<Phase description>" --parent <project-epic-id>
+PHASE_EPIC=$(bd create --title "Phase N: <Phase Description>" --type epic \
+  --description "<Phase description>" --parent <project-epic-id> --json | jq -r '.id')
 ```
 
 Store phase branch name in notes:
 ```bash
-bd note <phase-epic-id> "branch: ralph/feature-name-phase-N"
+bd note "$PHASE_EPIC" "branch: ralph/feature-name-phase-N"
 ```
 
 ### 3. Create Tasks (User Stories)
@@ -58,17 +62,18 @@ Lower priority number = higher priority = create first.
 For each user story (sorted by priority, ascending):
 
 ```bash
-bd task create "<Story ID>: <Story Title>" --description "<Story description>
+TASK_ID=$(bd create --title "<Story ID>: <Story Title>" --type task \
+  --description "<Story description>
 
 Acceptance Criteria:
 - Criterion 1
 - Criterion 2
-- Typecheck passes" --parent <phase-epic-id> --priority <priority-number>
+- Typecheck passes" --parent <phase-epic-id> --priority <priority-number> --json | jq -r '.id')
 ```
 
 Store story ID in notes:
 ```bash
-bd note <task-id> "story-id: US-001"
+bd note "$TASK_ID" "story-id: US-001"
 ```
 
 ### 4. Set Up Dependencies
@@ -301,52 +306,59 @@ Add ability to mark tasks with different statuses.
 
 ```bash
 # Create project epic
-PROJECT_EPIC=$(bd epic create "TaskApp" --description "Task Status Feature - Track task progress with status indicators")
-bd note $PROJECT_EPIC "branch: ralph/task-status"
+PROJECT_EPIC=$(bd create --title "TaskApp" --type epic \
+  --description "Task Status Feature - Track task progress with status indicators" --json | jq -r '.id')
+bd note "$PROJECT_EPIC" "branch: ralph/task-status"
 
 # Create phase epic
-PHASE_EPIC=$(bd epic create "Phase 1: Task Status Feature" --description "Task Status Feature - Track task progress with status indicators" --parent $PROJECT_EPIC)
-bd note $PHASE_EPIC "branch: ralph/task-status"
+PHASE_EPIC=$(bd create --title "Phase 1: Task Status Feature" --type epic \
+  --description "Task Status Feature - Track task progress with status indicators" \
+  --parent "$PROJECT_EPIC" --json | jq -r '.id')
+bd note "$PHASE_EPIC" "branch: ralph/task-status"
 
 # Create tasks in priority order
-TASK1=$(bd task create "US-001: Add status field to tasks table" --description "As a developer, I need to store task status in the database.
+TASK1=$(bd create --title "US-001: Add status field to tasks table" --type task \
+  --description "As a developer, I need to store task status in the database.
 
 Acceptance Criteria:
 - Add status column: 'pending' | 'in_progress' | 'done' (default 'pending')
 - Generate and run migration successfully
-- Typecheck passes" --parent $PHASE_EPIC --priority 1)
-bd note $TASK1 "story-id: US-001"
+- Typecheck passes" --parent "$PHASE_EPIC" --priority 1 --json | jq -r '.id')
+bd note "$TASK1" "story-id: US-001"
 
-TASK2=$(bd task create "US-002: Display status badge on task cards" --description "As a user, I want to see task status at a glance.
+TASK2=$(bd create --title "US-002: Display status badge on task cards" --type task \
+  --description "As a user, I want to see task status at a glance.
 
 Acceptance Criteria:
 - Each task card shows colored status badge
 - Badge colors: gray=pending, blue=in_progress, green=done
 - Typecheck passes
-- Verify in browser using browser MCP tools" --parent $PHASE_EPIC --priority 2)
-bd note $TASK2 "story-id: US-002"
-bd dep add $TASK2 $TASK1  # Priority 2 depends on priority 1
+- Verify in browser using browser MCP tools" --parent "$PHASE_EPIC" --priority 2 --json | jq -r '.id')
+bd note "$TASK2" "story-id: US-002"
+bd dep add "$TASK2" "$TASK1"  # Priority 2 depends on priority 1
 
-TASK3=$(bd task create "US-003: Add status toggle to task list rows" --description "As a user, I want to change task status directly from the list.
+TASK3=$(bd create --title "US-003: Add status toggle to task list rows" --type task \
+  --description "As a user, I want to change task status directly from the list.
 
 Acceptance Criteria:
 - Each row has status dropdown or toggle
 - Changing status saves immediately
 - UI updates without page refresh
 - Typecheck passes
-- Verify in browser using browser MCP tools" --parent $PHASE_EPIC --priority 3)
-bd note $TASK3 "story-id: US-003"
-bd dep add $TASK3 $TASK2  # Priority 3 depends on priority 2
+- Verify in browser using browser MCP tools" --parent "$PHASE_EPIC" --priority 3 --json | jq -r '.id')
+bd note "$TASK3" "story-id: US-003"
+bd dep add "$TASK3" "$TASK2"  # Priority 3 depends on priority 2
 
-TASK4=$(bd task create "US-004: Filter tasks by status" --description "As a user, I want to filter the list to see only certain statuses.
+TASK4=$(bd create --title "US-004: Filter tasks by status" --type task \
+  --description "As a user, I want to filter the list to see only certain statuses.
 
 Acceptance Criteria:
 - Filter dropdown: All | Pending | In Progress | Done
 - Filter persists in URL params
 - Typecheck passes
-- Verify in browser using browser MCP tools" --parent $PHASE_EPIC --priority 4)
-bd note $TASK4 "story-id: US-004"
-bd dep add $TASK4 $TASK3  # Priority 4 depends on priority 3
+- Verify in browser using browser MCP tools" --parent "$PHASE_EPIC" --priority 4 --json | jq -r '.id')
+bd note "$TASK4" "story-id: US-004"
+bd dep add "$TASK4" "$TASK3"  # Priority 4 depends on priority 3
 ```
 
 ---

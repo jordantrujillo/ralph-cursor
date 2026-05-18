@@ -45,7 +45,6 @@ setup_test_env() {
     runner_dir="$project_dir/scripts/ralph"
     mkdir -p "$runner_dir/cursor"
     cp "$CURRENT_SOURCE_DIR/ralph.py" "$runner_dir/ralph.py"
-    cp "$CURRENT_SOURCE_DIR/prd.yml.example" "$runner_dir/prd.yml.example"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.cursor.md" "$runner_dir/cursor/prompt.cursor.md"
     cp "$CURRENT_SOURCE_DIR/cursor/prompt.cursor.test.md" "$runner_dir/cursor/prompt.cursor.test.md" 2>/dev/null || true
     chmod +x "$runner_dir/ralph.py"
@@ -89,22 +88,6 @@ EOF
   cp "$project_dir/bin/cursor-agent" "$project_dir/bin/cursor"
   chmod +x "$project_dir/bin/agent"
   chmod +x "$project_dir/bin/cursor"
-
-  # Create test prd.yml
-  cat > "$RALPH_WORK_DIR/prd.yml" << 'EOF'
-project: TestProject
-branchName: ralph/test
-description: Test feature
-userStories:
-  - id: US-001
-    title: Test story
-    description: Test description
-    acceptanceCriteria:
-      - Test criterion
-    priority: 1
-    passes: false
-    notes: 
-EOF
 
   # Create test progress.txt
   echo "# Ralph Progress Log" > "$RALPH_WORK_DIR/progress.txt"
@@ -233,32 +216,6 @@ test_progress_append_only() {
   cleanup_test_env
 }
 
-test_prd_yml_parsing_failure() {
-  setup_test_env
-
-  echo "invalid yaml content: [" > "$RALPH_WORK_DIR/prd.yml"
-
-  if run_ralph 1 >/dev/null 2>&1; then
-    echo -e "${GREEN}PASS${NC}: Runner handles invalid prd.yml gracefully"
-  else
-    echo -e "${RED}FAIL${NC}: Runner crashes on invalid prd.yml"
-    cleanup_test_env
-    return 1
-  fi
-
-  rm -f "$RALPH_WORK_DIR/prd.yml"
-
-  if run_ralph 1 >/dev/null 2>&1; then
-    echo -e "${GREEN}PASS${NC}: Runner handles missing prd.yml gracefully"
-  else
-    echo -e "${RED}FAIL${NC}: Runner crashes on missing prd.yml"
-    cleanup_test_env
-    return 1
-  fi
-
-  cleanup_test_env
-}
-
 run_tests() {
   echo "Testing ralph.py..."
   echo ""
@@ -272,7 +229,6 @@ run_tests() {
   if test_stop_condition_complete; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_stop_condition_no_complete; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
   if test_progress_append_only; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
-  if test_prd_yml_parsing_failure; then ((tests_passed+=1)); else ((tests_failed+=1)); fi
 
   echo ""
   echo "========================================="
