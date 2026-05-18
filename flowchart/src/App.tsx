@@ -1,5 +1,5 @@
 import { useCallback, useState, useRef } from 'react';
-import type { Node, Edge, NodeChange, EdgeChange, Connection } from '@xyflow/react';
+import type { Node, Edge, NodeChange, EdgeChange, NodeProps } from '@xyflow/react';
 import {
   ReactFlow,
   useNodesState,
@@ -10,18 +10,14 @@ import {
   MarkerType,
   applyNodeChanges,
   applyEdgeChanges,
-  addEdge,
   Handle,
   Position,
-  reconnectEdge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './App.css';
 
 const nodeWidth = 260;
 const nodeHeight = 86;
-
-// setup = before loop; loop = one Cursor invocation + worker steps; decision = Ralph exit check
 
 type Phase = 'setup' | 'loop' | 'decision' | 'done';
 
@@ -35,80 +31,45 @@ const phaseColors: Record<Phase, { bg: string; border: string }> = {
 const allSteps: { id: string; label: string; description: string; phase: Phase }[] = [
   {
     id: '1',
-    label: 'Create PRD (markdown file)',
+    label: 'PRD + Beads issues',
     description:
-      'Cursor command generate-prd (.cursor/commands/generate-prd.md): clarifying Qs → structured PRD → save tasks/prd-[feature].md — no implementation',
+      'generate-prd → tasks/prd-*.md; prd-to-beads → bd epics/tasks + deps (or hand-roll bd create)',
     phase: 'setup',
   },
   {
     id: '2',
-    label: 'PRD → Beads issues',
-    description:
-      'Cursor command prd-to-beads (.cursor/commands/prd-to-beads.md): PRD markdown → bd epics/tasks + deps — or hand-roll bd create',
-    phase: 'setup',
-  },
-  {
-    id: '3',
     label: 'Epics + branch metadata',
     description: 'Project + phase epics; bd update … --notes "branch: ralph/…" (required for Ralph)',
     phase: 'setup',
   },
   {
-    id: '4',
+    id: '3',
     label: 'Run ralph.py',
     description: 'python3 scripts/ralph/ralph.py [max_iter] — checks bd, .beads/, cursor-agent|agent',
     phase: 'setup',
   },
   {
+    id: '4',
+    label: 'Worker: CLI + task',
+    description:
+      'Cursor w/ prompt.cursor.md; bd list/show → phase branch; bd ready → read task + comments (newest first)',
+    phase: 'loop',
+  },
+  {
     id: '5',
-    label: 'Each iteration: Cursor CLI',
-    description: 'Ralph runs worker with prompt.cursor.md (--print, --force, timeout, fresh context)',
+    label: 'Ship + Beads + git',
+    description:
+      'Meet AC; OK → comments add + bd close, else factual comment; commit/push when clean (per prompt)',
     phase: 'loop',
   },
   {
     id: '6',
-    label: 'Phase + branch',
-    description: 'Worker: bd list/show → phase epic → checkout branch from notes',
-    phase: 'loop',
-  },
-  {
-    id: '7',
-    label: 'Pick task',
-    description: 'bd ready --parent <phase> → lowest priority number = next task',
-    phase: 'loop',
-  },
-  {
-    id: '8',
-    label: 'Read task + comments',
-    description: 'bd show; scan comments (newest first) — avoid repeating dead ends',
-    phase: 'loop',
-  },
-  {
-    id: '9',
-    label: 'Implement + verify',
-    description: 'AC, .cursor/rules, typecheck/lint/tests; UI → browser MCP or automated tests',
-    phase: 'loop',
-  },
-  {
-    id: '10',
-    label: 'Beads outcome',
-    description: 'OK: comments add + bd close | stuck: factual failure comment only (no armchair)',
-    phase: 'loop',
-  },
-  {
-    id: '11',
-    label: 'Git (on success)',
-    description: 'Commit feat: [Story|Beads id] - title; push when clean (per prompt)',
-    phase: 'loop',
-  },
-  {
-    id: '12',
     label: 'Ralph: saw COMPLETE?',
     description: 'Worker prints <promise>COMPLETE</promise> when phase/project done; else normal end',
     phase: 'decision',
   },
   {
-    id: '13',
+    id: '7',
     label: 'Ralph exits 0',
     description: 'Driver finds <promise>COMPLETE</promise> in worker stdout → clean exit',
     phase: 'done',
@@ -119,7 +80,6 @@ const notes = [
   {
     id: 'note-prd',
     appearsWithStep: 1,
-    // Middle column — between setup (left) and worker (right); no overlap w/ either stack
     position: { x: 400, y: 48 },
     color: { bg: '#e8f4fc', border: '#2b6cb0' },
     content: `generate-prd (IDE)
@@ -130,8 +90,8 @@ Iterate + read before Beads.`,
   },
   {
     id: 'note-1',
-    appearsWithStep: 3,
-    position: { x: 400, y: 340 },
+    appearsWithStep: 2,
+    position: { x: 400, y: 300 },
     color: { bg: '#f5f0ff', border: '#8b5cf6' },
     content: `bd update $EPIC_ID --notes "branch: ralph/my-feature"
 
@@ -140,9 +100,8 @@ top-level project epic`,
   },
   {
     id: 'note-2',
-    appearsWithStep: 10,
-    // Right of worker column (worker ends ~1040px)
-    position: { x: 1060, y: 600 },
+    appearsWithStep: 5,
+    position: { x: 1060, y: 520 },
     color: { bg: '#fdf4f0', border: '#c97a50' },
     content: `Before bd close (success):
 bd comments add <id> "Completed…"
@@ -151,8 +110,33 @@ Stuck: comments add, facts only`,
   },
 ];
 
-function CustomNode({ data }: { data: { title: string; description: string; phase: Phase } }) {
+/** Which handles each step id needs (edges only — no interactive wiring). */
+const nodeHandles: Record<string, Partial<Record<'top' | 'bottom' | 'left' | 'right', 'source' | 'target'>>> = {
+  '1': { bottom: 'source' },
+  '2': { top: 'target', bottom: 'source' },
+  '3': { top: 'target', right: 'source' },
+  '4': { left: 'target', right: 'target', bottom: 'source' },
+  '5': { top: 'target', bottom: 'source' },
+  '6': { top: 'target', bottom: 'source', left: 'source' },
+  '7': { top: 'target' },
+};
+
+function CustomNode({ id, data }: NodeProps<{ title: string; description: string; phase: Phase }>) {
   const colors = phaseColors[data.phase];
+  const h = nodeHandles[id] ?? {};
+
+  const handle = (side: 'top' | 'bottom' | 'left' | 'right', kind: 'source' | 'target') => {
+    const pos =
+      side === 'top'
+        ? Position.Top
+        : side === 'bottom'
+          ? Position.Bottom
+          : side === 'left'
+            ? Position.Left
+            : Position.Right;
+    return <Handle key={`${id}-${side}-${kind}`} type={kind} position={pos} id={`${side}-${kind}`} />;
+  };
+
   return (
     <div
       className="custom-node"
@@ -163,14 +147,7 @@ function CustomNode({ data }: { data: { title: string; description: string; phas
         minHeight: nodeHeight,
       }}
     >
-      <Handle type="target" position={Position.Top} id="top" />
-      <Handle type="target" position={Position.Left} id="left" />
-      <Handle type="source" position={Position.Right} id="right" />
-      <Handle type="source" position={Position.Bottom} id="bottom" />
-      <Handle type="target" position={Position.Right} id="right-target" style={{ right: 0 }} />
-      <Handle type="target" position={Position.Bottom} id="bottom-target" style={{ bottom: 0 }} />
-      <Handle type="source" position={Position.Top} id="top-source" />
-      <Handle type="source" position={Position.Left} id="left-source" />
+      {(Object.entries(h) as [keyof typeof h, 'source' | 'target'][]).map(([side, kind]) => handle(side, kind))}
       <div className="node-content">
         <div className="node-title">{data.title}</div>
         {data.description && <div className="node-description">{data.description}</div>}
@@ -196,21 +173,13 @@ function NoteNode({ data }: { data: { content: string; color: { bg: string; bord
 const nodeTypes = { custom: CustomNode, note: NoteNode };
 
 const positions: { [key: string]: { x: number; y: number } } = {
-  // Setup column (left) — x=80, nodes width 260 → right edge ~340
   '1': { x: 80, y: 48 },
   '2': { x: 80, y: 200 },
   '3': { x: 80, y: 352 },
-  '4': { x: 80, y: 504 },
-  // Worker stack (right) — clear of middle-column notes (400–670)
-  '5': { x: 780, y: 48 },
-  '6': { x: 780, y: 168 },
-  '7': { x: 780, y: 288 },
-  '8': { x: 780, y: 408 },
-  '9': { x: 780, y: 528 },
-  '10': { x: 780, y: 648 },
-  '11': { x: 780, y: 768 },
-  '12': { x: 780, y: 888 },
-  '13': { x: 780, y: 1008 },
+  '4': { x: 780, y: 48 },
+  '5': { x: 780, y: 220 },
+  '6': { x: 780, y: 392 },
+  '7': { x: 780, y: 564 },
   ...Object.fromEntries(notes.map((n) => [n.id, n.position])),
 };
 
@@ -221,19 +190,19 @@ const edgeConnections: {
   targetHandle?: string;
   label?: string;
 }[] = [
-  { source: '1', target: '2', sourceHandle: 'bottom', targetHandle: 'top' },
-  { source: '2', target: '3', sourceHandle: 'bottom', targetHandle: 'top' },
-  { source: '3', target: '4', sourceHandle: 'bottom', targetHandle: 'top' },
-  { source: '4', target: '5', sourceHandle: 'right', targetHandle: 'left' },
-  { source: '5', target: '6', sourceHandle: 'bottom', targetHandle: 'top' },
-  { source: '6', target: '7', sourceHandle: 'bottom', targetHandle: 'top' },
-  { source: '7', target: '8', sourceHandle: 'bottom', targetHandle: 'top' },
-  { source: '8', target: '9', sourceHandle: 'bottom', targetHandle: 'top' },
-  { source: '9', target: '10', sourceHandle: 'bottom', targetHandle: 'top' },
-  { source: '10', target: '11', sourceHandle: 'bottom', targetHandle: 'top' },
-  { source: '11', target: '12', sourceHandle: 'bottom', targetHandle: 'top' },
-  { source: '12', target: '13', sourceHandle: 'bottom', targetHandle: 'top', label: 'Yes' },
-  { source: '12', target: '5', sourceHandle: 'left-source', targetHandle: 'right-target', label: 'No' },
+  { source: '1', target: '2', sourceHandle: 'bottom-source', targetHandle: 'top-target' },
+  { source: '2', target: '3', sourceHandle: 'bottom-source', targetHandle: 'top-target' },
+  { source: '3', target: '4', sourceHandle: 'right-source', targetHandle: 'left-target' },
+  { source: '4', target: '5', sourceHandle: 'bottom-source', targetHandle: 'top-target' },
+  { source: '5', target: '6', sourceHandle: 'bottom-source', targetHandle: 'top-target' },
+  { source: '6', target: '7', sourceHandle: 'bottom-source', targetHandle: 'top-target', label: 'Yes' },
+  {
+    source: '6',
+    target: '4',
+    sourceHandle: 'left-source',
+    targetHandle: 'right-target',
+    label: 'No',
+  },
 ];
 
 function createNode(step: (typeof allSteps)[0], visible: boolean, position?: { x: number; y: number }): Node {
@@ -323,7 +292,7 @@ function App() {
   };
 
   const initialNodes = getNodes(1);
-  const initialEdges = edgeConnections.map((conn, index) => createEdge(conn, index < 0));
+  const initialEdges = edgeConnections.map((conn) => createEdge(conn, false));
 
   const [nodes, setNodes] = useNodesState(initialNodes);
   const [edges, setEdges] = useEdgesState(initialEdges);
@@ -343,27 +312,6 @@ function App() {
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       setEdges((eds) => applyEdgeChanges(changes, eds));
-    },
-    [setEdges]
-  );
-
-  const onConnect = useCallback((connection: Connection) => {
-    setEdges((eds) =>
-      addEdge(
-        {
-          ...connection,
-          animated: true,
-          style: { stroke: '#222', strokeWidth: 2 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#222' },
-        },
-        eds
-      )
-    );
-  }, [setEdges]);
-
-  const onReconnect = useCallback(
-    (oldEdge: Edge, newConnection: Connection) => {
-      setEdges((eds) => reconnectEdge(oldEdge, newConnection, eds));
     },
     [setEdges]
   );
@@ -402,7 +350,7 @@ function App() {
     setVisibleCount(1);
     nodePositions.current = { ...positions };
     setNodes(getNodes(1));
-    setEdges(edgeConnections.map((conn, index) => createEdge(conn, index < 0)));
+    setEdges(edgeConnections.map((conn) => createEdge(conn, false)));
   }, [setNodes, setEdges]);
 
   return (
@@ -410,9 +358,8 @@ function App() {
       <div className="header">
         <h1>How Ralph loops (this repo)</h1>
         <p>
-          PRD file: <code>generate-prd</code> → <code>tasks/prd-*.md</code>; Beads: <code>prd-to-beads</code>. Then{' '}
-          <code>ralph.py</code> runs Cursor with <code>prompt.cursor.md</code>; tracker = <strong>Beads</strong> (
-          <code>bd</code>).
+          PRD → Beads → <code>ralph.py</code> drives Cursor (<code>prompt.cursor.md</code>); tracker ={' '}
+          <strong>Beads</strong> (<code>bd</code>).
         </p>
       </div>
       <div className="flow-container">
@@ -422,17 +369,15 @@ function App() {
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onReconnect={onReconnect}
           fitView
           fitViewOptions={{ padding: 0.12 }}
           minZoom={0.22}
           maxZoom={1.25}
           nodesDraggable={true}
-          nodesConnectable={true}
-          edgesReconnectable={true}
+          nodesConnectable={false}
+          edgesReconnectable={false}
           elementsSelectable={true}
-          deleteKeyCode={['Backspace', 'Delete']}
+          deleteKeyCode={null}
           panOnDrag={true}
           panOnScroll={true}
           zoomOnScroll={true}
