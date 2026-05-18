@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "ralph_cursor",
+  "project_id": "852dff52-fb28-420c-bfb3-8fecbb8d904e"
+}
