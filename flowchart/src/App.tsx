@@ -45,7 +45,8 @@ const allSteps: { id: string; label: string; description: string; phase: Phase }
   {
     id: '3',
     label: 'Run ralph.py',
-    description: 'python3 scripts/ralph/ralph.py [max_iter] — checks bd, .beads/, cursor-agent|agent',
+    description:
+      'Portable: python3 <ralph-cursor>/bin/ralph.py run --project REPO — bundled ralph.py, cwd=REPO, .beads/; legacy: python3 scripts/ralph/ralph.py in-repo; needs cursor-agent|agent',
     phase: 'setup',
   },
   {

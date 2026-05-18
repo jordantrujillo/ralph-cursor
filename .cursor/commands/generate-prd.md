@@ -17,6 +17,22 @@ Create detailed Product Requirements Documents that are clear, actionable, and s
 
 **Phase Strategy:** If the feature will touch many files, have many stories, or span multiple codebase areas, automatically organize it into phases. This enables incremental PRs and better code review.
 
+### Planning principles (always)
+
+PRDs must align with **Matt Pocock–style skills** used in this repo (full detail: `vertical-slices.md`, `deep-modules.md`).
+
+**Thin vertical slices (not horizontal batches)**  
+Each story (and each phase, when used) should be a **tracer bullet**: smallest **user-visible behavior** cut through **every layer** that behavior needs (e.g. persistence → API → UI → tests together), not “all DB work, then all API, then all UI.” Prefer **many thin slices** over few thick layer-wide tasks. Stories describe **observable behavior**, not “implement the service layer.”
+
+**Vertical TDD (when product work uses TDD)**  
+Match the same shape in red–green–refactor: **one** failing test for **one** behavior, then minimal code to pass, then refactor—repeat. Avoid writing a batch of many failing tests then implementing everything (horizontal test plan).
+
+**Deep modules vs shallow**  
+When naming boundaries in **Technical Considerations** or **Design Considerations**, favor **deep modules**: **small** public interface (few entry points, simple contracts), **rich** behavior behind it. Call out **ports** at seams (HTTP, DB, queue) and adapters; avoid PRDs that imply many thin pass-through wrappers. Shallow “wrapper layers” are a smell—prefer consolidating complexity behind a clearer API.
+
+**Phases vs vertical slices**  
+Phases group work for review size and dependency order—they must **not** redefine the project as layer-by-layer delivery. A phase = a **set of vertical slices** that are each shippable/demoable, building on the previous phase—not “Phase 1 = entire schema for the epic.”
+
 ---
 
 ## Step 1: Clarifying Questions
@@ -154,8 +170,8 @@ Specific, measurable objectives (bullet list).
 
 **When to create phases:**
 - **Always create phases if:** The feature will touch many files (10+ files), has many user stories (6+ stories), or spans multiple areas of the codebase
-- **Create phases if:** The feature involves database changes + API changes + UI changes (these are natural phase boundaries)
-- **Create phases if:** The feature has clear logical groupings (e.g., "backend setup" → "API endpoints" → "UI components")
+- **Create phases if:** The epic is large but should still ship as **ordered vertical slices**—not as an excuse to sequence “all backend, then all API, then all UI” (that is **horizontal**; avoid in PRD structure)
+- **Create phases if:** The feature has clear **behavioral** groupings (e.g., “read-only visibility slice” → “mutations slice” → “filtering/polish slice”), each slice end-to-end where possible
 - **You can skip phases only if:** The feature is very small (3-4 stories, 2-3 files) and tightly focused
 
 **Format:**
@@ -197,10 +213,12 @@ Specific, measurable objectives (bullet list).
 - **Each phase must include the three Quality Assurance stories** (Code Review, Security Review, Test Review) at the end of that phase's stories
 - When using phases, renumber QA stories for each phase (e.g., US-007/008/009 for Phase 1, US-010/011/012 for Phase 2)
 - Security reports should be phase-specific (e.g., `security-report-phase-1.md`, `security-report-phase-2.md`)
-- **Natural phase boundaries:**
-  - Database/schema changes → API/backend logic → UI components
-  - Core functionality → Advanced features → Polish/optimization
-  - Single area of codebase → Integration with other areas
+- **Good phase boundaries (vertical-friendly):**
+  - First **shippable** tracer(s) through full stack → next behaviors that extend the same surfaces → polish/optimization
+  - **Dependency** order when a later slice truly needs an earlier contract (keep earlier slice still **vertical**, not “whole layer done”)
+- **Bad phase boundaries (horizontal—do not use as default):**
+  - “All schema” → “all endpoints” → “all UI” for the whole epic
+  - “Backend setup” → “API endpoints” → “UI components” as the primary story structure
 
 ### 4. User Stories
 Each story needs:
@@ -210,6 +228,8 @@ Each story needs:
 
 Each story should be small enough to implement in one focused session.
 
+**Vertical slice rules:** One story = one **narrow** end-to-end behavior (or one **widening** step on a path already proven by a prior slice). Acceptance criteria should prove **observable** outcomes across the layers this behavior needs—not a checklist that only touches one tier unless the feature is genuinely single-layer. If a story is “add column only” with no user-visible proof, merge it into the first story that **demos** that data.
+
 **If using phases:** Group stories under their respective phase sections. If not using phases, list all stories in a single "User Stories" section.
 
 **Format (Product Development):**
@@ -218,6 +238,7 @@ Each story should be small enough to implement in one focused session.
 **Description:** As a [user], I want [feature] so that [benefit].
 
 **Acceptance Criteria:**
+- [ ] **Vertical TDD:** Complete Red → Green → Refactor for **one** behavior before starting the next unrelated failing test
 - [ ] Write failing test(s) first (TDD Red phase)
 - [ ] Implement minimal code to pass tests (TDD Green phase)
 - [ ] Refactor code while keeping tests passing (TDD Refactor phase)
@@ -286,7 +307,7 @@ Each story should be small enough to implement in one focused session.
   **Real-world validation (deploy to test environment) is only used when explicitly requested or required.** By default, infrastructure as code uses validation and code review only.
 - Acceptance criteria must be verifiable, not vague. "Works correctly" is bad. "Button shows confirmation dialog before deleting" or "EC2 instance has t3.medium instance type" is good.
 - **For any story with UI changes:** Always include "Verify in browser using dev-browser skill" as acceptance criteria. This ensures visual verification of frontend work.
-- **For product development:** Tests should be written BEFORE implementation code, not after. This ensures tests actually test the code and prevents over-engineering.
+- **For product development:** Tests should be written BEFORE implementation code, not after. This ensures tests actually test the code and prevents over-engineering. Order tests **vertically** with implementation (slice-by-slice), not as a big upfront red batch.
 - **For infrastructure as code:** Validation and plan checks should be run before deployment, but actual verification happens in real environments.
 
 **Required Quality Assurance Stories:**
@@ -306,7 +327,7 @@ Every PRD must include these three reviewer stories. These specialists ensure co
 - [ ] Typecheck/lint passes
 
 ### US-XXX: Security Review - Production Hardening
-**Description:** As a code security specialist, I want to review all code created/modified in the branch for security vulnerabilities so that the code is hardened for production use. I want to fix critical issues found, write a report on critical issues that were found/fixed. I don't want to fix the medium and minor issues, but we do wnat to document them.
+**Description:** As a code security specialist, I want to review all code created/modified in the branch for security vulnerabilities so that the code is hardened for production use. I want to fix critical issues found, write a report on critical issues that were found/fixed. I don't want to fix the medium and minor issues, but we do want to document them.
 
 **Acceptance Criteria:**
 - [ ] Review all code created/modified in the branch for security vulnerabilities
@@ -321,14 +342,14 @@ Every PRD must include these three reviewer stories. These specialists ensure co
 **Description:** As a quality assurance specialist, I want to review all tests and validation in the branch to ensure they follow best practices, are comprehensive, not "cheated", and cover normal use cases and all known edge cases. And fix any issues found.
 
 **Acceptance Criteria (Product Development):**
-- [ ] Verify TDD workflow was followed: tests were written BEFORE implementation code (Red-Green-Refactor cycle)
+- [ ] Verify TDD workflow was followed: tests were written BEFORE implementation code (Red-Green-Refactor cycle), preferably **vertical** (one behavior: red → green → refactor before starting the next failing test)
 - [ ] Review all tests created/modified in the branch
 - [ ] Verify tests are not "cheated" (no false positives, proper assertions), like skipping tests or deleting tests that are relevant to the changes, or writing tests that are not relevant to the changes
 - [ ] Ensure tests were written first and failed initially (Red phase), then implementation made them pass (Green phase)
 - [ ] Verify no implementation code exists without corresponding tests
 - [ ] Ensure tests cover normal use cases
 - [ ] Ensure tests cover all known edge cases
-- [ ] Verify test quality follows TDD best practices (tests define behavior, not just verify implementation)
+- [ ] Verify test quality follows TDD best practices (tests define behavior through **public** seams—not brittle introspection); prefer **deep** units under test (small surface, meaningful behavior)
 - [ ] Confirm tests are maintainable and well-structured
 - [ ] Typecheck/lint passes
 
@@ -388,6 +409,7 @@ What this feature will NOT include. Critical for managing scope.
 - Known constraints or dependencies
 - Integration points with existing systems
 - Performance requirements
+- **Module shape:** Note main **deep** modules (simple interface, complexity inside), **ports** at boundaries, and adapters—avoid prescribing many shallow pass-through layers
 
 ### 9. Success Metrics
 How will success be measured?
@@ -409,6 +431,7 @@ Remaining questions or areas needing clarification.
    - Tests define the desired behavior before any implementation
    - Tests should fail initially (this proves they're testing something)
    - Focus on what the code should do, not how it does it
+   - **Vertical rhythm:** Prefer **one** failing test (or one tight group for one behavior), then pass it, then refactor—then next behavior. Avoid “write every test for the epic in red, then implement everything in green” (horizontal TDD).
 
 2. **Green Phase:** Write minimal implementation
    - Only write enough code to make the tests pass
@@ -419,6 +442,7 @@ Remaining questions or areas needing clarification.
    - Clean up, remove duplication, improve design
    - All tests must still pass after refactoring
    - Improve readability and maintainability
+   - Prefer **deepening**: simpler public API, more behavior behind it (see `deep-modules.md`)
 
 **Why TDD for Product Development?**
 - Tests written first ensure they actually test the code (not just verify implementation)
@@ -548,7 +572,7 @@ End your prompt with:
 
 This forces the AI to think about test quality, not just test quantity.
 
-**Key Principle:** Be prescriptive about scenarios and assertions, not just "write tests." The more specific you are about what needs verification, the less room for hallucinated tests that pass without testing anything real.
+**Key Principle:** Be prescriptive about scenarios and assertions, not just "write tests." The more specific you are about what needs verification, the less room for hallucinated tests that pass without testing anything real. Match **vertical** delivery: one scenario fully tested and implemented before piling on the next.
 
 ### Infrastructure as Code: Validation and Code Review
 
@@ -603,7 +627,7 @@ The PRD reader may be a junior developer or AI agent. Therefore:
 - Provide enough detail to understand purpose and core logic
 - Number requirements for easy reference
 - Use concrete examples where helpful
-- **For product development:** Emphasize TDD workflow (tests first, then implementation, then refactor)
+- **For product development:** Emphasize TDD workflow (tests first, then implementation, then refactor) and **vertical** slices (stories + TDD cycles cut through behavior, not layers)
 - **For infrastructure as code:** Emphasize validation → code review workflow (plan checks and real-world validation only if explicitly requested)
 - Clearly distinguish between product development and infrastructure as code contexts
 
@@ -635,51 +659,40 @@ Add priority levels to tasks so users can focus on what matters most. Tasks can 
 
 ## User Stories
 
-### US-001: Add priority field to database
-**Description:** As a developer, I need to store task priority so it persists across sessions.
+*Example uses **vertical slices**: each story is a thin tracer through persistence + API + UI where that behavior needs them—not “all DB, then all UI.”*
+
+### US-001: See default priority on every task (tracer bullet)
+**Description:** As a user, I want every task to show a priority badge (default medium) so I can see priority without extra setup.
 
 **Acceptance Criteria:**
-- [ ] Write failing test(s) first (TDD Red phase) - test that priority field exists and defaults to 'medium'
-- [ ] Implement minimal code to pass tests (TDD Green phase) - add priority column to tasks table: 'high' | 'medium' | 'low' (default 'medium')
-- [ ] Refactor code while keeping tests passing (TDD Refactor phase)
-- [ ] Generate and run migration successfully
-- [ ] Typecheck passes
-
-### US-002: Display priority indicator on task cards
-**Description:** As a user, I want to see task priority at a glance so I know what needs attention first.
-
-**Acceptance Criteria:**
-- [ ] Write failing test(s) first (TDD Red phase) - test that task cards render priority badges with correct colors
-- [ ] Implement minimal code to pass tests (TDD Green phase) - add priority badge component to task cards
-- [ ] Refactor code while keeping tests passing (TDD Refactor phase)
-- [ ] Each task card shows colored priority badge (red=high, yellow=medium, gray=low)
-- [ ] Priority visible without hovering or clicking
+- [ ] **Vertical TDD:** Red → Green → Refactor for **this story’s** first failing test before adding the next unrelated failing test
+- [ ] Write failing test(s) first (TDD Red phase)—e.g. contract/integration test that tasks returned to the client include `priority` defaulting to `medium`, and UI test or e2e that a card renders the medium badge
+- [ ] Implement minimal code to pass (TDD Green phase)—migration/column `'high'|'medium'|'low'` default `'medium'`, read path exposes field, list/cards render colored badge (red/yellow/gray)
+- [ ] Refactor while tests pass (TDD Refactor phase); keep a **small** task/read API surface (avoid many shallow wrappers)
+- [ ] Migration runs successfully; existing tasks backfill reads as medium
 - [ ] Typecheck passes
 - [ ] Verify in browser using dev-browser skill
 
-### US-003: Add priority selector to task edit
-**Description:** As a user, I want to change a task's priority when editing it.
+### US-002: Change a task’s priority from the edit flow
+**Description:** As a user, I want to change priority when editing a task so I can reprioritize without leaving the flow.
 
 **Acceptance Criteria:**
-- [ ] Write failing test(s) first (TDD Red phase) - test priority selector behavior and save functionality
-- [ ] Implement minimal code to pass tests (TDD Green phase) - add priority dropdown to edit modal
-- [ ] Refactor code while keeping tests passing (TDD Refactor phase)
-- [ ] Priority dropdown in task edit modal
-- [ ] Shows current priority as selected
-- [ ] Saves immediately on selection change
+- [ ] **Vertical TDD:** one behavior cycle at a time (red → green → refactor per slice of behavior)
+- [ ] Write failing test(s) first—e.g. API/update + UI for selector and persisted value
+- [ ] Implement minimal code—update endpoint or mutation, dropdown in edit modal, shows current value, persists on change
+- [ ] Refactor; deepen domain logic behind a clear module boundary if needed
 - [ ] Typecheck passes
 - [ ] Verify in browser using dev-browser skill
 
-### US-004: Filter tasks by priority
-**Description:** As a user, I want to filter the task list to see only high-priority items when I'm focused.
+### US-003: Filter (and sort) tasks by priority
+**Description:** As a user, I want to filter the list by priority so I can focus on what matters.
 
 **Acceptance Criteria:**
-- [ ] Write failing test(s) first (TDD Red phase) - test filtering logic and URL param persistence
-- [ ] Implement minimal code to pass tests (TDD Green phase) - add filter dropdown and filtering logic
-- [ ] Refactor code while keeping tests passing (TDD Refactor phase)
-- [ ] Filter dropdown with options: All | High | Medium | Low
-- [ ] Filter persists in URL params
-- [ ] Empty state message when no tasks match filter
+- [ ] **Vertical TDD** as above
+- [ ] Write failing test(s) first—filter query/param + list behavior + empty state
+- [ ] Implement minimal code—filter control, URL or state persistence per product decision, filter API or client filter as appropriate
+- [ ] Refactor; avoid duplicating priority rules—single **deep** place for priority semantics if duplicated
+- [ ] Filter options: All | High | Medium | Low; empty state when none match
 - [ ] Typecheck passes
 - [ ] Verify in browser using dev-browser skill
 
@@ -702,6 +715,7 @@ Add priority levels to tasks so users can focus on what matters most. Tasks can 
 - Reuse existing badge component with color variants
 - Filter state managed via URL search params
 - Priority stored in database, not computed
+- One **deep** “task priority” capability behind small API/UI contracts (avoid parallel tiny services that only forward)
 
 ## Success Metrics
 
@@ -734,6 +748,8 @@ Provision a production-ready PostgreSQL database on AWS RDS with proper security
 - Document connection details and access patterns
 
 ## User Stories
+
+*Prefer **vertical** infrastructure slices when possible: each story delivers a **verifiable** chunk of real configuration (validate/review/plan as scoped), not “ten unrelated resources in one batch” with no checkpoint.*
 
 ### US-001: Create RDS PostgreSQL instance
 **Description:** As a DevOps engineer, I need a production PostgreSQL database so the application can store and retrieve data reliably.
@@ -834,11 +850,14 @@ Before saving the PRD:
 - [ ] **Created phases if feature is large** (6+ stories, 10+ files, or spans multiple codebase areas)
 - [ ] If using phases, each phase has clear description and branch name
 - [ ] If not using phases, feature is small enough (3-4 stories, 2-3 files) to skip phases
+- [ ] **Stories are vertical slices** (behavior end-to-end where applicable), not layer-wide horizontal batches; phases likewise are **sets of slices**, not “all DB then all API then all UI”
 - [ ] User stories are small and specific
+- [ ] **Technical / design notes** mention **deep** module boundaries where helpful (small interface, complexity inside; ports/adapters at seams)
 - [ ] **All implementation stories include TDD acceptance criteria** (Red-Green-Refactor phases)
 - [ ] Functional requirements are numbered and unambiguous
 - [ ] Non-goals section defines clear boundaries
 - [ ] **Included the three required Quality Assurance reviewer stories** (Code Review, Security Review, Test Review)
 - [ ] **If using phases, QA stories are included in EACH phase** (renumbered appropriately)
 - [ ] Test Review story emphasizes appropriate testing workflow verification (TDD for product, validation/code review for infrastructure by default)
+- [ ] **Vertical TDD:** PRD implies per-story / per-behavior red→green→refactor, not batched “all reds then all greens”
 - [ ] Saved to `tasks/prd-[feature-name].md`

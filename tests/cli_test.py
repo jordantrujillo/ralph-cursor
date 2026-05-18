@@ -4,6 +4,7 @@ Tests for Ralph CLI - converted from tests/cli.test.js
 """
 
 import os
+import re
 import subprocess
 import tempfile
 import shutil
@@ -14,11 +15,15 @@ PROJECT_ROOT = Path(__file__).parent.parent
 CLI_PATH = PROJECT_ROOT / 'bin' / 'ralph.py'
 
 
-def run_cli(args, cwd):
+def run_cli(args, cwd, env=None):
     """Run the CLI command and return the result."""
+    run_env = os.environ.copy()
+    if env:
+        run_env.update(env)
     result = subprocess.run(
         ['python3', str(CLI_PATH)] + args,
         cwd=str(cwd),
+        env=run_env,
         capture_output=True,
         text=True
     )
@@ -45,6 +50,9 @@ def test_ralph_init_creates_directory_and_files():
         for file in required_files:
             file_path = Path(test_dir) / file
             assert file_path.exists(), f"File {file} was not created"
+
+        proj_cursor_cmds = Path(test_dir) / '.cursor' / 'commands'
+        assert not proj_cursor_cmds.exists(), 'init should not copy project .cursor/commands by default'
 
         # Check that ralph.py is executable
         ralph_py_path = Path(test_dir) / 'scripts/ralph/ralph.py'
@@ -237,6 +245,181 @@ def test_ralph_invalid_command_shows_helpful_error():
         assert '--help' in result['stderr'] or '--help' in result['stdout']
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_init_copy_project_commands_installs_cursor_files():
+    """Optional --copy-project-commands copies .md commands into the repo."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['init', '--copy-project-commands'], test_dir)
+        assert result['code'] == 0
+        p = Path(test_dir) / '.cursor' / 'commands' / 'prd-to-beads.md'
+        assert p.exists(), 'prd-to-beads.md should exist when --copy-project-commands'
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_init_no_cursorignore_skips_file():
+    """--no-cursorignore should not create .cursorignore."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['init', '--no-cursorignore'], test_dir)
+        assert result['code'] == 0
+        assert not (Path(test_dir) / '.cursorignore').exists()
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_install_cursor_writes_commands_and_config():
+    """install-cursor copies to ~/.cursor/commands under a fake HOME."""
+    fake_home = tempfile.mkdtemp(prefix='ralph-fakehome-')
+    try:
+        result = run_cli(['install-cursor'], PROJECT_ROOT, env={'HOME': fake_home})
+        assert result['code'] == 0, result['stderr']
+        dest = Path(fake_home) / '.cursor' / 'commands' / 'prd-to-beads.md'
+        assert dest.exists(), 'prd-to-beads should be installed'
+        root_file = Path(fake_home) / '.config' / 'ralph-cursor' / 'package_root'
+        assert root_file.exists()
+        assert str(PROJECT_ROOT.resolve()) in root_file.read_text()
+    finally:
+        shutil.rmtree(fake_home, ignore_errors=True)
+
+
+def test_ralph_install_cursor_skips_existing_without_force():
+    """Second install without --force skips existing command files."""
+    fake_home = tempfile.mkdtemp(prefix='ralph-fakehome-')
+    try:
+        r1 = run_cli(['install-cursor'], PROJECT_ROOT, env={'HOME': fake_home})
+        assert r1['code'] == 0
+        r2 = run_cli(['install-cursor'], PROJECT_ROOT, env={'HOME': fake_home})
+        assert r2['code'] == 0
+        assert 'Skipped' in r2['stdout'] or 'skipped' in r2['stdout'].lower()
+    finally:
+        shutil.rmtree(fake_home, ignore_errors=True)
+
+
+def test_ralph_setup_writes_gitignore_block():
+    """setup merges Ralph gitignore markers."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['setup', '--project', test_dir], test_dir)
+        assert result['code'] == 0, result['stderr']
+        gi = Path(test_dir) / '.gitignore'
+        text = gi.read_text(encoding='utf-8')
+        assert '# >>> ralph-cursor' in text
+        assert '.beads/' in text
+        assert 'tasks/prd-*.md' in text
+        # Idempotent second run
+        r2 = run_cli(['setup', '--project', test_dir], test_dir)
+        assert r2['code'] == 0
+        assert gi.read_text(encoding='utf-8').count('# >>> ralph-cursor') == 1
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_setup_adds_agents_claude_when_untracked():
+    """Untracked AGENTS.md / CLAUDE.md (typical after bd init) get ignore lines."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        subprocess.run(['git', 'init', '-q'], cwd=test_dir, check=True)
+        (Path(test_dir) / 'AGENTS.md').write_text('beads\n', encoding='utf-8')
+        (Path(test_dir) / 'CLAUDE.md').write_text('beads\n', encoding='utf-8')
+        claude = Path(test_dir) / '.claude'
+        claude.mkdir(parents=True, exist_ok=True)
+        (claude / 'settings.json').write_text('{}\n', encoding='utf-8')
+        result = run_cli(['setup', '--project', test_dir], test_dir)
+        assert result['code'] == 0, result['stderr']
+        text = (Path(test_dir) / '.gitignore').read_text(encoding='utf-8')
+        m = re.search(r'# >>> ralph-cursor\n(.*?)# <<< ralph-cursor', text, re.DOTALL)
+        assert m, 'marker block missing'
+        block = m.group(1)
+        assert 'AGENTS.md' in block
+        assert 'CLAUDE.md' in block
+        assert '.claude/' in block
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_setup_omits_agents_when_tracked():
+    """Tracked AGENTS.md is not added to the Ralph ignore block."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        subprocess.run(['git', 'init', '-q'], cwd=test_dir, check=True)
+        subprocess.run(
+            ['git', 'config', 'user.email', 'test@test.local'],
+            cwd=test_dir,
+            check=True,
+        )
+        subprocess.run(
+            ['git', 'config', 'user.name', 'Test User'],
+            cwd=test_dir,
+            check=True,
+        )
+        (Path(test_dir) / 'AGENTS.md').write_text('committed\n', encoding='utf-8')
+        subprocess.run(['git', 'add', 'AGENTS.md'], cwd=test_dir, check=True)
+        subprocess.run(['git', 'commit', '-q', '-m', 'init'], cwd=test_dir, check=True)
+        (Path(test_dir) / 'CLAUDE.md').write_text('new untracked\n', encoding='utf-8')
+        result = run_cli(['setup', '--project', test_dir], test_dir)
+        assert result['code'] == 0, result['stderr']
+        text = (Path(test_dir) / '.gitignore').read_text(encoding='utf-8')
+        m = re.search(r'# >>> ralph-cursor\n(.*?)# <<< ralph-cursor', text, re.DOTALL)
+        block = m.group(1)
+        assert 'AGENTS.md' not in block
+        assert 'CLAUDE.md' in block
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_setup_omits_dot_claude_when_tracked():
+    """Do not add .claude/ to ignore block when something under .claude is tracked."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        subprocess.run(['git', 'init', '-q'], cwd=test_dir, check=True)
+        subprocess.run(
+            ['git', 'config', 'user.email', 'test@test.local'],
+            cwd=test_dir,
+            check=True,
+        )
+        subprocess.run(
+            ['git', 'config', 'user.name', 'Test User'],
+            cwd=test_dir,
+            check=True,
+        )
+        claude = Path(test_dir) / '.claude'
+        claude.mkdir(parents=True, exist_ok=True)
+        (claude / 'settings.json').write_text('{}\n', encoding='utf-8')
+        subprocess.run(['git', 'add', '.claude/settings.json'], cwd=test_dir, check=True)
+        subprocess.run(['git', 'commit', '-q', '-m', 'init'], cwd=test_dir, check=True)
+        result = run_cli(['setup', '--project', test_dir], test_dir)
+        assert result['code'] == 0, result['stderr']
+        text = (Path(test_dir) / '.gitignore').read_text(encoding='utf-8')
+        m = re.search(r'# >>> ralph-cursor\n(.*?)# <<< ralph-cursor', text, re.DOTALL)
+        block = m.group(1)
+        assert '.claude/' not in block
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_setup_skip_gitignore_noop():
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        result = run_cli(['setup', '--project', test_dir, '--skip-gitignore'], test_dir)
+        assert result['code'] == 0
+        assert not (Path(test_dir) / '.gitignore').exists()
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_run_project_requires_beads():
+    """run --project fails when .beads is missing."""
+    empty = tempfile.mkdtemp(prefix='ralph-nobeads-')
+    try:
+        result = run_cli(['run', '--project', empty], PROJECT_ROOT)
+        assert result['code'] != 0
+        combined = (result['stderr'] + result['stdout']).lower()
+        assert 'beads' in combined
+    finally:
+        shutil.rmtree(empty, ignore_errors=True)
 
 
 def test_ralph_run_missing_ralph_py_shows_clear_guidance():
@@ -474,6 +657,7 @@ def test_ralph_help_includes_uninstall():
         result = run_cli(['--help'], test_dir)
         assert result['code'] == 0
         assert 'uninstall' in result['stdout'].lower(), 'Help should include uninstall command'
+        assert 'install-cursor' in result['stdout'].lower(), 'Help should include install-cursor'
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)
 

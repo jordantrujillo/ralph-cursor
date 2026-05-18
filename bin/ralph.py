@@ -3,22 +3,22 @@
 Ralph CLI - Autonomous AI agent loop installer and runner
 
 Commands:
-ralph init [--force] [--cursor-cli]
-ralph run [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
+  install-cursor  Copy global Cursor slash commands to ~/.cursor/commands/ (bootstrap)
+  init            Initialize Ralph in the current repository (legacy in-repo runner)
+  setup           Merge Ralph .gitignore block into a project
+  run             Run Ralph agent loop [--project DIR for portable mode]
+  uninstall, version
 
 Init options:
---force: Overwrite existing files
---cursor-cli: Also install .cursor/cli.json template
+  --force, --cursor-cli, --copy-project-commands, --no-cursorignore
 
 Run options:
-max_iterations: Maximum number of iterations (default: 10)
---cursor-timeout: Timeout for cursor worker in seconds (default: 1800, from RALPH_CURSOR_TIMEOUT env)
---model: Model to use for cursor worker (default: 'auto', from RALPH_MODEL env)
-
-The run command executes scripts/ralph/ralph.py which uses Cursor CLI as the worker.
+  --project DIR   Use bundled runner with cwd=DIR (requires .beads in that repo)
+  plus scripts/ralph/ralph.py args: max_iterations, --cursor-timeout, --model, --debug
 """
 
 import os
+import re
 import sys
 import shutil
 import json
@@ -34,6 +34,105 @@ PACKAGE_ROOT = SCRIPT_DIR.parent
 TEMPLATES_DIR = PACKAGE_ROOT / 'templates'
 if not TEMPLATES_DIR.exists():
     TEMPLATES_DIR = PACKAGE_ROOT
+
+GITIGNORE_MARKER_START = '# >>> ralph-cursor'
+GITIGNORE_MARKER_END = '# <<< ralph-cursor'
+
+GITIGNORE_RALPH_LINES = [
+    '.beads/',
+    'tasks/prd-*.md',
+    'scripts/ralph/.last-branch',
+    'scripts/ralph/logs/',
+    'scripts/ralph/archive/',
+]
+
+
+def _git_path_tracked(repo_root: Path, rel_path: str) -> bool:
+    """True if rel_path is in the git index (staged or committed)."""
+    if not (repo_root / '.git').exists():
+        return False
+    try:
+        r = subprocess.run(
+            ['git', '-C', str(repo_root), 'ls-files', '--error-unmatch', '--', rel_path],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        return r.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _git_has_tracked_under_prefix(repo_root: Path, prefix: str) -> bool:
+    """True if any indexed path matches prefix (directory tree)."""
+    if not (repo_root / '.git').exists():
+        return False
+    try:
+        r = subprocess.run(
+            ['git', '-C', str(repo_root), 'ls-files', '-z', '--', prefix],
+            capture_output=True,
+            timeout=15,
+        )
+        return bool(r.stdout)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _beads_init_optional_gitignore_lines(repo_root: Path):
+    """
+    `bd init` often creates AGENTS.md, CLAUDE.md, and a `.claude/` tree. Add ignore
+    lines when those paths exist and nothing under them is tracked yet (typical
+    right after Beads init). Skip when already tracked (user owned them first).
+    """
+    repo_root = repo_root.resolve()
+    extra = []
+    for name in ('AGENTS.md', 'CLAUDE.md'):
+        if not (repo_root / name).is_file():
+            continue
+        if _git_path_tracked(repo_root, name):
+            continue
+        extra.append(name)
+
+    claude_dir = repo_root / '.claude'
+    if claude_dir.is_dir() and not _git_has_tracked_under_prefix(repo_root, '.claude/'):
+        extra.append('.claude/')
+
+    return extra
+
+
+def _ralph_gitignore_inner_lines(repo_root: Path):
+    lines = list(GITIGNORE_RALPH_LINES)
+    for line in _beads_init_optional_gitignore_lines(repo_root):
+        if line not in lines:
+            lines.append(line)
+    return lines
+
+
+def _ralph_gitignore_block(repo_root: Path):
+    inner = '\n'.join(_ralph_gitignore_inner_lines(repo_root))
+    return f'{GITIGNORE_MARKER_START}\n{inner}\n{GITIGNORE_MARKER_END}\n'
+
+
+def apply_ralph_gitignore_block(repo_root: Path):
+    """Insert or replace the marker-wrapped Ralph block in repo_root/.gitignore."""
+    repo_root = repo_root.resolve()
+    path = repo_root / '.gitignore'
+    block = _ralph_gitignore_block(repo_root)
+    existing = path.read_text(encoding='utf-8') if path.exists() else ''
+
+    pattern = re.compile(
+        re.escape(GITIGNORE_MARKER_START) + r'\n.*?\n' + re.escape(GITIGNORE_MARKER_END) + r'\n?',
+        re.DOTALL,
+    )
+    if pattern.search(existing):
+        new_content = pattern.sub(block, existing)
+    else:
+        if existing and not existing.endswith('\n'):
+            existing += '\n'
+        sep = '\n' if existing.strip() else ''
+        new_content = existing + sep + block
+
+    path.write_text(new_content, encoding='utf-8')
 
 
 def parse_flags(args):
@@ -57,6 +156,8 @@ def handle_init(args):
     flags = parse_flags(args)
     force = flags.get('--force', False)
     cursor_cli = flags.get('--cursor-cli', False)
+    copy_project_commands = flags.get('--copy-project-commands', False)
+    no_cursorignore = flags.get('--no-cursorignore', False)
 
     repo_root = Path.cwd()
     target_dir = repo_root / 'scripts' / 'ralph'
@@ -103,8 +204,11 @@ def handle_init(args):
     required_files = [
         {'src': 'scripts/ralph/ralph.py', 'dest': 'scripts/ralph/ralph.py', 'executable': True},
         {'src': 'scripts/ralph/cursor/prompt.cursor.md', 'dest': 'scripts/ralph/cursor/prompt.cursor.md', 'executable': False},
-        {'src': '.cursorignore', 'dest': '.cursorignore', 'executable': False},
     ]
+    if not no_cursorignore:
+        required_files.append(
+            {'src': '.cursorignore', 'dest': '.cursorignore', 'executable': False},
+        )
 
     created = []
     skipped = []
@@ -148,33 +252,32 @@ def handle_init(args):
             print(f'  Source: {src_path}', file=sys.stderr)
             skipped.append(file_info['dest'])
 
-    # Copy commands from .cursor/commands/ to .cursor/commands/
-    commands_src_dir = PACKAGE_ROOT / '.cursor' / 'commands'
-    if commands_src_dir.exists():
-        cursor_commands_dir = repo_root / '.cursor' / 'commands'
-        for command_file in commands_src_dir.iterdir():
-            if command_file.is_file() and command_file.suffix == '.md':
-                dest_command_file = cursor_commands_dir / command_file.name
-                
-                # Create destination directory
-                if not cursor_commands_dir.exists():
-                    try:
-                        cursor_commands_dir.mkdir(parents=True, exist_ok=True)
-                    except (PermissionError, OSError) as e:
-                        print(f'Warning: Failed to create directory {cursor_commands_dir}: {e}', file=sys.stderr)
+    # Optionally copy commands into project (legacy; default is global ~/.cursor/commands)
+    if copy_project_commands:
+        commands_src_dir = PACKAGE_ROOT / '.cursor' / 'commands'
+        if commands_src_dir.exists():
+            cursor_commands_dir = repo_root / '.cursor' / 'commands'
+            for command_file in commands_src_dir.iterdir():
+                if command_file.is_file() and command_file.suffix == '.md':
+                    dest_command_file = cursor_commands_dir / command_file.name
+
+                    if not cursor_commands_dir.exists():
+                        try:
+                            cursor_commands_dir.mkdir(parents=True, exist_ok=True)
+                        except (PermissionError, OSError) as e:
+                            print(f'Warning: Failed to create directory {cursor_commands_dir}: {e}', file=sys.stderr)
+                            skipped.append(f'.cursor/commands/{command_file.name}')
+                            continue
+
+                    if dest_command_file.exists() and not force:
                         skipped.append(f'.cursor/commands/{command_file.name}')
-                        continue
-                
-                # Check if file exists and handle force flag
-                if dest_command_file.exists() and not force:
-                    skipped.append(f'.cursor/commands/{command_file.name}')
-                else:
-                    try:
-                        shutil.copy2(command_file, dest_command_file)
-                        created.append(f'.cursor/commands/{command_file.name}')
-                    except (PermissionError, OSError) as e:
-                        print(f'Warning: Failed to copy command file {command_file.name}: {e}', file=sys.stderr)
-                        skipped.append(f'.cursor/commands/{command_file.name}')
+                    else:
+                        try:
+                            shutil.copy2(command_file, dest_command_file)
+                            created.append(f'.cursor/commands/{command_file.name}')
+                        except (PermissionError, OSError) as e:
+                            print(f'Warning: Failed to copy command file {command_file.name}: {e}', file=sys.stderr)
+                            skipped.append(f'.cursor/commands/{command_file.name}')
 
     # Optional: .cursor/cli.json
     if cursor_cli:
@@ -227,10 +330,12 @@ def handle_init(args):
         print('✓ Ralph initialized successfully!')
         print('='*60)
         print('\nNext steps:')
-        print('  1. Create a PRD markdown file (e.g., tasks/prd-feature-name.md)')
-        print('  2. Manually create Beads issues using bd CLI commands')
-        print('     See .cursor/commands/prd-to-beads.md for the conversion process')
-        print('  3. Run: ralph run')
+        print('  1. Bootstrap global Cursor commands (once per machine):')
+        print('       python3 <path-to-ralph-cursor>/bin/ralph.py install-cursor')
+        print('  2. In this repo: run `ralph setup --project .` or use the /ralph-setup slash command for .gitignore + Beads')
+        print('  3. Create a PRD (e.g. tasks/prd-feature-name.md) and Beads issues (see prd-to-beads in ~/.cursor/commands)')
+        print('  4. Portable loop: ralph run --project "$(pwd)"')
+        print('     Legacy: ralph run (uses ./scripts/ralph/ralph.py in this repo)')
         print('\nFor more information, run: ralph --help')
     else:
         print('\n' + '='*60)
@@ -239,63 +344,92 @@ def handle_init(args):
         print('\nTip: Use --force to overwrite existing files')
 
 
+def _strip_run_project_flag(args):
+    """Extract --project DIR from run argv; return (project_dir_or_none, remaining_args)."""
+    project = None
+    out = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--project' and i + 1 < len(args):
+            project = args[i + 1]
+            i += 2
+            continue
+        if arg.startswith('--project='):
+            project = arg.split('=', 1)[1]
+            i += 1
+            continue
+        out.append(arg)
+        i += 1
+    return project, out
+
+
 def handle_run(args):
     """
     Handle the 'run' command.
-    
-    Passes arguments to scripts/ralph/ralph.py which accepts:
-    - max_iterations (positional, default: 10)
-    - --cursor-timeout SECONDS (default: 1800, from RALPH_CURSOR_TIMEOUT env)
-    - --model MODEL (default: 'auto', from RALPH_MODEL env)
+
+    With --project DIR: runs PACKAGE_ROOT/scripts/ralph/ralph.py with cwd=DIR (portable).
+    Otherwise: runs repo-local scripts/ralph/ralph.py (legacy).
     """
-    repo_root = Path.cwd()
-    runner_script = repo_root / 'scripts' / 'ralph' / 'ralph.py'
+    project_raw, forward_args = _strip_run_project_flag(args)
 
-    if not runner_script.exists():
-        print('Error: Ralph is not initialized in this repository.', file=sys.stderr)
-        print('', file=sys.stderr)
-        print('The required file is missing:', file=sys.stderr)
-        print(f'  {runner_script}', file=sys.stderr)
-        print('', file=sys.stderr)
-        print('To fix this:', file=sys.stderr)
-        print('  1. Run: ralph init', file=sys.stderr)
-        print('  2. This will create the necessary files in scripts/ralph/', file=sys.stderr)
-        print('  3. Then you can run: ralph run', file=sys.stderr)
-        sys.exit(1)
+    if project_raw is not None:
+        project_dir = Path(project_raw).expanduser().resolve()
+        if not project_dir.is_dir():
+            print(f'Error: --project is not a directory: {project_raw}', file=sys.stderr)
+            sys.exit(1)
+        beads_dir = project_dir / '.beads'
+        if not beads_dir.exists():
+            print('Error: Beads not initialized in --project directory.', file=sys.stderr)
+            print(f'  Missing: {beads_dir}', file=sys.stderr)
+            print('  Run: bd init', file=sys.stderr)
+            print('  (in that repository)', file=sys.stderr)
+            sys.exit(1)
+        runner_script = PACKAGE_ROOT / 'scripts' / 'ralph' / 'ralph.py'
+        if not runner_script.is_file():
+            print('Error: Bundled runner not found (incomplete ralph-cursor checkout):', file=sys.stderr)
+            print(f'  {runner_script}', file=sys.stderr)
+            sys.exit(1)
+        cwd = str(project_dir)
+    else:
+        repo_root = Path.cwd()
+        runner_script = repo_root / 'scripts' / 'ralph' / 'ralph.py'
+        cwd = str(repo_root)
 
-    # Security: Verify the runner script is actually a Python file
-    # This prevents executing malicious files if the path is compromised
+        if not runner_script.exists():
+            print('Error: Ralph is not initialized in this repository.', file=sys.stderr)
+            print('', file=sys.stderr)
+            print('The required file is missing:', file=sys.stderr)
+            print(f'  {runner_script}', file=sys.stderr)
+            print('', file=sys.stderr)
+            print('To fix this:', file=sys.stderr)
+            print('  1. Portable: ralph run --project /path/to/repo (needs .beads there)', file=sys.stderr)
+            print('  2. Legacy: ralph init then ralph run', file=sys.stderr)
+            sys.exit(1)
+
     runner_script_resolved = runner_script.resolve()
     if not runner_script_resolved.is_file():
         print('Error: Runner script path is not a file:', file=sys.stderr)
         print(f'  {runner_script}', file=sys.stderr)
         sys.exit(1)
-    
-    # Security: Basic validation - ensure it's a Python script
+
     try:
         if not runner_script_resolved.suffix == '.py':
             print('Error: Runner script does not have .py extension:', file=sys.stderr)
             print(f'  {runner_script}', file=sys.stderr)
             sys.exit(1)
     except Exception:
-        pass  # If we can't check, continue (defensive)
+        pass
 
-    # Security: Validate args don't contain obviously malicious patterns
-    # Since we use list form (not shell=True), subprocess properly escapes args
-    # But we add basic validation for defense in depth
-    for arg in args:
-        # Check for null bytes (would be rejected by subprocess anyway, but explicit is better)
+    for arg in forward_args:
         if '\x00' in arg:
             print('Error: Invalid argument (contains null byte)', file=sys.stderr)
             sys.exit(1)
 
-    # Execute the runner script, passing through all arguments
-    # scripts/ralph/ralph.py accepts: [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
-    # Security: Using list form (not shell=True) prevents command injection
     try:
         result = subprocess.run(
-            ['python3', str(runner_script_resolved)] + args,
-            cwd=str(repo_root)
+            ['python3', str(runner_script_resolved)] + forward_args,
+            cwd=cwd,
         )
         sys.exit(result.returncode)
     except FileNotFoundError:
@@ -307,6 +441,91 @@ def handle_run(args):
         print(f'Error: Failed to execute runner script: {e}', file=sys.stderr)
         print(f'  Script: {runner_script}', file=sys.stderr)
         sys.exit(1)
+
+
+def handle_install_cursor(args):
+    """Copy package .cursor/commands into ~/.cursor/commands/ and write package_root config."""
+    flags = parse_flags(args)
+    force = flags.get('--force', False)
+
+    commands_src = PACKAGE_ROOT / '.cursor' / 'commands'
+    if not commands_src.is_dir():
+        print('Error: Source commands directory not found:', file=sys.stderr)
+        print(f'  {commands_src}', file=sys.stderr)
+        sys.exit(1)
+
+    home = Path.home()
+    dest = home / '.cursor' / 'commands'
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+    except (OSError, PermissionError) as e:
+        print(f'Error: Cannot create {dest}: {e}', file=sys.stderr)
+        sys.exit(1)
+
+    copied = []
+    skipped = []
+    for src_file in sorted(commands_src.glob('*.md')):
+        if not src_file.is_file():
+            continue
+        dest_file = dest / src_file.name
+        if dest_file.exists() and not force:
+            skipped.append(src_file.name)
+            continue
+        try:
+            shutil.copy2(src_file, dest_file)
+            copied.append(src_file.name)
+        except (OSError, PermissionError) as e:
+            print(f'Warning: Could not copy {src_file.name}: {e}', file=sys.stderr)
+            skipped.append(src_file.name)
+
+    config_dir = home / '.config' / 'ralph-cursor'
+    try:
+        config_dir.mkdir(parents=True, exist_ok=True)
+        root_file = config_dir / 'package_root'
+        root_file.write_text(str(PACKAGE_ROOT.resolve()) + '\n', encoding='utf-8')
+    except (OSError, PermissionError) as e:
+        print(f'Warning: Could not write package_root config: {e}', file=sys.stderr)
+
+    skill_src = PACKAGE_ROOT / 'extras' / 'ralph-portable' / 'SKILL.md'
+    if skill_src.is_file():
+        skill_dest_dir = home / '.cursor' / 'skills-cursor' / 'ralph-portable'
+        try:
+            skill_dest_dir.mkdir(parents=True, exist_ok=True)
+            skill_dest = skill_dest_dir / 'SKILL.md'
+            if not skill_dest.exists() or force:
+                shutil.copy2(skill_src, skill_dest)
+                print(f'Installed skill: {skill_dest}')
+        except (OSError, PermissionError) as e:
+            print(f'Warning: Could not install skill: {e}', file=sys.stderr)
+
+    print('Ralph Cursor commands installed to:', dest)
+    if copied:
+        print('  Copied:', ', '.join(copied))
+    if skipped:
+        print('  Skipped (exists, use --force):', ', '.join(skipped))
+    print('Package root recorded at:', config_dir / 'package_root')
+    print('Restart Cursor or reload window if commands do not appear yet.')
+
+
+def handle_setup(args):
+    """Merge Ralph .gitignore block into a project (--project, default cwd)."""
+    flags = parse_flags(args)
+    if flags.get('--skip-gitignore'):
+        print('Skipped .gitignore update (--skip-gitignore).')
+        return
+
+    project = flags.get('--project')
+    if project:
+        repo = Path(project).expanduser().resolve()
+    else:
+        repo = Path.cwd().resolve()
+
+    if not repo.is_dir():
+        print(f'Error: not a directory: {repo}', file=sys.stderr)
+        sys.exit(1)
+
+    apply_ralph_gitignore_block(repo)
+    print(f'Updated {repo / ".gitignore"} with Ralph ignore block.')
 
 
 def handle_uninstall(args):
@@ -425,27 +644,34 @@ def handle_version(args):
 def _print_available_commands():
     """Print available commands list."""
     print('Available commands:', file=sys.stderr)
-    print('  init       Initialize Ralph in the current repository', file=sys.stderr)
-    print('  run        Run Ralph agent loop', file=sys.stderr)
-    print('  uninstall   Uninstall Ralph from your system', file=sys.stderr)
-    print('  version    Display version information', file=sys.stderr)
+    print('  install-cursor  Install global Cursor slash commands (~/.cursor/commands/)', file=sys.stderr)
+    print('  init            Initialize Ralph in the current repository', file=sys.stderr)
+    print('  setup           Merge Ralph .gitignore block into a project', file=sys.stderr)
+    print('  run             Run Ralph agent loop', file=sys.stderr)
+    print('  uninstall       Uninstall Ralph symlink from your PATH', file=sys.stderr)
+    print('  version         Display version information', file=sys.stderr)
 
 
 def _suggest_command(command):
     """Suggest a command based on user input."""
-    if 'init' in command.lower() or 'i' in command.lower():
+    if 'install' in command.lower() or 'cursor' in command.lower():
+        print('  Try: ralph install-cursor', file=sys.stderr)
+    elif 'init' in command.lower() or command.lower() == 'i':
         print('  Try: ralph init', file=sys.stderr)
-    elif 'run' in command.lower() or 'r' in command.lower():
+    elif 'setup' in command.lower():
+        print('  Try: ralph setup --project .', file=sys.stderr)
+    elif 'run' in command.lower() or command.lower() == 'r':
         print('  Try: ralph run', file=sys.stderr)
-    elif 'uninstall' in command.lower() or 'u' in command.lower():
+    elif 'uninstall' in command.lower() or command.lower() == 'u':
         print('  Try: ralph uninstall', file=sys.stderr)
-    elif 'version' in command.lower() or 'v' in command.lower():
+    elif 'version' in command.lower() or command.lower() == 'v':
         print('  Try: ralph version', file=sys.stderr)
     else:
-        print('  Try: ralph init  (to set up Ralph)', file=sys.stderr)
-        print('  Try: ralph run   (to run the agent loop)', file=sys.stderr)
-        print('  Try: ralph uninstall  (to remove Ralph)', file=sys.stderr)
-        print('  Try: ralph version  (to check version)', file=sys.stderr)
+        print('  Try: ralph install-cursor  (bootstrap Cursor commands)', file=sys.stderr)
+        print('  Try: ralph init  (legacy in-repo runner)', file=sys.stderr)
+        print('  Try: ralph run   (agent loop)', file=sys.stderr)
+        print('  Try: ralph uninstall  (remove PATH symlink)', file=sys.stderr)
+        print('  Try: ralph version  (check version)', file=sys.stderr)
 
 
 def print_help():
@@ -453,50 +679,44 @@ def print_help():
     help_text = """Ralph CLI - Autonomous AI agent loop installer and runner
 
 Commands:
-  init              Initialize Ralph in the current repository
+  install-cursor    Copy Ralph slash commands to ~/.cursor/commands/ (bootstrap)
+  init              Initialize Ralph in the current repository (legacy runner)
+  setup             Merge Ralph .gitignore block into a project
   run               Run Ralph agent loop
-  uninstall         Uninstall Ralph from your system
+  uninstall         Remove `ralph` from PATH (symlink only)
   version           Display version information
 
+install-cursor:
+  ralph install-cursor [--force]
+  Copies .md commands from this package to ~/.cursor/ and records package path in
+  ~/.config/ralph-cursor/package_root. Optional: installs extras/ralph-portable skill.
+
 Init:
-  ralph init [--force] [--cursor-cli]
-  
-  Options:
-    --force         Overwrite existing files
-    --cursor-cli    Also install .cursor/cli.json template
+  ralph init [--force] [--cursor-cli] [--copy-project-commands] [--no-cursorignore]
+
+Setup:
+  ralph setup [--project DIR] [--skip-gitignore]
+  Default DIR is the current working directory.
 
 Run:
-  ralph run [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
-  
-  Arguments:
-    max_iterations  Maximum number of iterations (default: 10)
-  
-  Options:
-    --cursor-timeout SECONDS  Timeout for cursor worker in seconds 
-                              (default: 1800, from RALPH_CURSOR_TIMEOUT env)
-    --model MODEL            Model to use for cursor worker 
-                              (default: 'auto', from RALPH_MODEL env)
+  ralph run [--project DIR] [max_iterations] [--cursor-timeout SECONDS] [--model MODEL]
 
-Uninstall:
+  --project DIR     Portable mode: bundled runner, cwd=DIR (requires .beads there)
+  max_iterations    Maximum iterations (default: 10)
+  --cursor-timeout  Timeout for cursor worker in seconds (default: 1800)
+  --model           Model for cursor worker (default: auto)
+
+Uninstall / Version:
   ralph uninstall
-  
-  Removes Ralph installation from your PATH.
-
-Version:
   ralph version
   ralph --version
-  
-  Displays the installed version of Ralph CLI.
-
-The run command executes scripts/ralph/ralph.py which uses Cursor CLI as the worker.
 
 Examples:
-  ralph init
-  ralph init --force --cursor-cli
-  ralph run
+  python3 /path/to/ralph-cursor/bin/ralph.py install-cursor
+  ralph setup --project .
+  ralph run --project /path/to/repo 10
   ralph run 20
-  ralph run 10 --cursor-timeout 3600 --model claude-3.5-sonnet
-  ralph uninstall
+  ralph init --no-cursorignore
 """
     print(help_text)
 
@@ -527,6 +747,10 @@ def main():
 
     if command == 'init':
         handle_init(args)
+    elif command == 'install-cursor':
+        handle_install_cursor(args)
+    elif command == 'setup':
+        handle_setup(args)
     elif command == 'run':
         handle_run(args)
     elif command == 'uninstall':
