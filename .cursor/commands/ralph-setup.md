@@ -9,14 +9,14 @@ Use this checklist for a **project you opened in Cursor** (any git repo). Ralph 
 **Do this automatically unless the user explicitly opts out:**
 
 1. Workspace root = the open project (where `.git` / work lives).
-2. After **`bd init`** (or if `.beads/` already exists), run **`ralph setup`** from a terminal **at workspace root** so **`.beads/`** is added to **`.gitignore`** (with the other Ralph lines). Untracked **`AGENTS.md`** / **`CLAUDE.md`** from Beads are included automatically; already-tracked copies are left out. Prefer the CLI — do not hand-edit unless `ralph setup` fails.
+2. After **`bd init`** (or if `.beads/` already exists), run **`ralph setup`** from a terminal **at workspace root** so **`.beads/`** is added to **`.gitignore`** (with the other Ralph lines). Untracked **`AGENTS.md`**, **`CLAUDE.md`**, and **`.claude/`** from Beads are included automatically; already-tracked copies are left out. Prefer the CLI — do not hand-edit unless `ralph setup` fails.
 
 ```bash
 RALPH_ROOT=$(tr -d '\n' < ~/.config/ralph-cursor/package_root)
 python3 "$RALPH_ROOT/bin/ralph.py" setup --project "$(pwd)"
 ```
 
-3. Confirm **`.gitignore`** contains the `# >>> ralph-cursor` block, **`.beads/`**, and (when `bd init` created them as **untracked** files) **`AGENTS.md`** / **`CLAUDE.md`** entries added by `ralph setup`. If `install-cursor` was never run, tell the user to run it once from their ralph-cursor clone (see below).
+3. Confirm **`.gitignore`** contains the `# >>> ralph-cursor` block, **`.beads/`**, and (when `bd init` created them as **untracked**) **`AGENTS.md`**, **`CLAUDE.md`**, and **`.claude/`** entries added by `ralph setup`. If `install-cursor` was never run, tell the user to run it once from their ralph-cursor clone (see below).
 
 Only skip writing gitignore if the user asked not to touch gitignore — then use `setup --project "$(pwd)" --skip-gitignore` and say so in the reply.
 
@@ -53,7 +53,7 @@ That copies command files to `~/.cursor/commands/` and writes **`~/.config/ralph
 bd init
 ```
 
-2. **Gitignore (includes `.beads/`; Beads-only `AGENTS.md` / `CLAUDE.md`)** — **run this** so Beads data and PRD scratch paths are not committed. `ralph setup` merges the Ralph block; it also adds **`AGENTS.md`** and **`CLAUDE.md`** only when those files exist and are **not yet tracked by git** (typical right after `bd init`). If you already had committed copies before Beads, they stay out of the ignore list.
+2. **Gitignore (includes `.beads/`; Beads-only `AGENTS.md`, `CLAUDE.md`, `.claude/`)** — **run this** so Beads data and PRD scratch paths are not committed. `ralph setup` merges the Ralph block; it also adds **`AGENTS.md`**, **`CLAUDE.md`**, and **`.claude/`** only when those paths exist and are **not yet tracked by git** (typical right after `bd init`). If you already had committed copies before Beads, they stay out of the ignore list.
 
 ```bash
 RALPH_ROOT=$(tr -d '\n' < ~/.config/ralph-cursor/package_root)

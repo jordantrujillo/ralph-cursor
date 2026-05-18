@@ -63,11 +63,26 @@ def _git_path_tracked(repo_root: Path, rel_path: str) -> bool:
         return False
 
 
+def _git_has_tracked_under_prefix(repo_root: Path, prefix: str) -> bool:
+    """True if any indexed path matches prefix (directory tree)."""
+    if not (repo_root / '.git').exists():
+        return False
+    try:
+        r = subprocess.run(
+            ['git', '-C', str(repo_root), 'ls-files', '-z', '--', prefix],
+            capture_output=True,
+            timeout=15,
+        )
+        return bool(r.stdout)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
 def _beads_init_optional_gitignore_lines(repo_root: Path):
     """
-    `bd init` often creates AGENTS.md and CLAUDE.md at repo root. If they exist but
-    are not yet tracked by git, add them to the Ralph ignore block so they are not
-    committed by mistake. Skip when already tracked (user had them before Beads).
+    `bd init` often creates AGENTS.md, CLAUDE.md, and a `.claude/` tree. Add ignore
+    lines when those paths exist and nothing under them is tracked yet (typical
+    right after Beads init). Skip when already tracked (user owned them first).
     """
     repo_root = repo_root.resolve()
     extra = []
@@ -77,6 +92,11 @@ def _beads_init_optional_gitignore_lines(repo_root: Path):
         if _git_path_tracked(repo_root, name):
             continue
         extra.append(name)
+
+    claude_dir = repo_root / '.claude'
+    if claude_dir.is_dir() and not _git_has_tracked_under_prefix(repo_root, '.claude/'):
+        extra.append('.claude/')
+
     return extra
 
 

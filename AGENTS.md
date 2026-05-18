@@ -22,7 +22,7 @@ python3 /path/to/ralph-cursor/bin/ralph.py run --project "$(pwd)" [max_iteration
 # Legacy: in-repo runner after `ralph init`
 python3 scripts/ralph/ralph.py [max_iterations] [--cursor-timeout SECONDS]
 
-# Merge Ralph .gitignore block (adds AGENTS.md/CLAUDE.md only when untracked — typical after bd init)
+# Merge Ralph .gitignore block (adds AGENTS.md / CLAUDE.md / .claude/ only when untracked — typical after bd init)
 python3 /path/to/ralph-cursor/bin/ralph.py setup --project "$(pwd)"
 
 # Convert PRD markdown to Beads issues (manual bd commands — see global command prd-to-beads)

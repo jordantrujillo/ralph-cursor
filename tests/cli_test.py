@@ -324,6 +324,9 @@ def test_ralph_setup_adds_agents_claude_when_untracked():
         subprocess.run(['git', 'init', '-q'], cwd=test_dir, check=True)
         (Path(test_dir) / 'AGENTS.md').write_text('beads\n', encoding='utf-8')
         (Path(test_dir) / 'CLAUDE.md').write_text('beads\n', encoding='utf-8')
+        claude = Path(test_dir) / '.claude'
+        claude.mkdir(parents=True, exist_ok=True)
+        (claude / 'settings.json').write_text('{}\n', encoding='utf-8')
         result = run_cli(['setup', '--project', test_dir], test_dir)
         assert result['code'] == 0, result['stderr']
         text = (Path(test_dir) / '.gitignore').read_text(encoding='utf-8')
@@ -332,6 +335,7 @@ def test_ralph_setup_adds_agents_claude_when_untracked():
         block = m.group(1)
         assert 'AGENTS.md' in block
         assert 'CLAUDE.md' in block
+        assert '.claude/' in block
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)
 
@@ -362,6 +366,36 @@ def test_ralph_setup_omits_agents_when_tracked():
         block = m.group(1)
         assert 'AGENTS.md' not in block
         assert 'CLAUDE.md' in block
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_ralph_setup_omits_dot_claude_when_tracked():
+    """Do not add .claude/ to ignore block when something under .claude is tracked."""
+    test_dir = tempfile.mkdtemp(prefix='ralph-test-')
+    try:
+        subprocess.run(['git', 'init', '-q'], cwd=test_dir, check=True)
+        subprocess.run(
+            ['git', 'config', 'user.email', 'test@test.local'],
+            cwd=test_dir,
+            check=True,
+        )
+        subprocess.run(
+            ['git', 'config', 'user.name', 'Test User'],
+            cwd=test_dir,
+            check=True,
+        )
+        claude = Path(test_dir) / '.claude'
+        claude.mkdir(parents=True, exist_ok=True)
+        (claude / 'settings.json').write_text('{}\n', encoding='utf-8')
+        subprocess.run(['git', 'add', '.claude/settings.json'], cwd=test_dir, check=True)
+        subprocess.run(['git', 'commit', '-q', '-m', 'init'], cwd=test_dir, check=True)
+        result = run_cli(['setup', '--project', test_dir], test_dir)
+        assert result['code'] == 0, result['stderr']
+        text = (Path(test_dir) / '.gitignore').read_text(encoding='utf-8')
+        m = re.search(r'# >>> ralph-cursor\n(.*?)# <<< ralph-cursor', text, re.DOTALL)
+        block = m.group(1)
+        assert '.claude/' not in block
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)
 

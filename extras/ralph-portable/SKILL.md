@@ -19,7 +19,7 @@ Installs `~/.cursor/commands/*.md`, optional skill copy, `~/.config/ralph-cursor
 ## Per repo
 
 - `bd init` if no `.beads/`
-- `python3 "$(tr -d '\n' < ~/.config/ralph-cursor/package_root)/bin/ralph.py" setup --project .` → `.gitignore` marker block (`.beads/`, PRD glob, legacy `scripts/ralph/` paths; **`AGENTS.md` / `CLAUDE.md`** only when untracked — typical after `bd init`)
+- `python3 "$(tr -d '\n' < ~/.config/ralph-cursor/package_root)/bin/ralph.py" setup --project .` → `.gitignore` marker block (`.beads/`, PRD glob, legacy `scripts/ralph/` paths; **`AGENTS.md` / `CLAUDE.md` / `.claude/`** only when untracked — typical after `bd init`)
 - PRD → issues: slash `/prd-to-beads` or read `~/.cursor/commands/prd-to-beads.md`
 
 ## Loop

@@ -39,7 +39,7 @@ ln -sf "$(pwd)/bin/ralph.py" "$HOME/.local/bin/ralph"
 
 1. Open the project in Cursor (or `cd` there in a terminal).
 2. **`bd init`** if `.beads/` is not present yet.
-3. Merge recommended **`.gitignore`** entries (PRD glob, Beads, legacy runner noise; **`AGENTS.md` / `CLAUDE.md`** only when present and **untracked** — typical right after `bd init`):
+3. Merge recommended **`.gitignore`** entries (PRD glob, Beads, legacy runner noise; **`AGENTS.md` / `CLAUDE.md` / `.claude/`** only when present and **untracked** — typical right after `bd init`):
 
    ```bash
    RALPH_ROOT=$(tr -d '\n' < ~/.config/ralph-cursor/package_root)
@@ -274,7 +274,7 @@ python3 bin/ralph.py install-cursor [--force]
 
 ### `ralph setup`
 
-Merge a Ralph **`.gitignore`** block (PRDs, `.beads/`, legacy runner paths). Also adds **`AGENTS.md`** and **`CLAUDE.md`** when those files exist at the repo root and are **not** in git yet (so Beads-created files are ignored; pre-existing tracked copies are left alone).
+Merge a Ralph **`.gitignore`** block (PRDs, `.beads/`, legacy runner paths). Also adds **`AGENTS.md`**, **`CLAUDE.md`**, and **`.claude/`** when those paths exist at the repo root and are **not** in git yet (Beads-created noise); pre-existing tracked trees are left alone.
 
 ```bash
 ralph setup [--project DIR] [--skip-gitignore]
